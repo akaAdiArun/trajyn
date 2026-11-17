@@ -9,10 +9,12 @@ test run in CI.
 
 ## Milestone 2 · Comparative research framework
 
-In progress. Expand the benchmark with branching fulfillment scenarios, replay verified
-experience to induce portable capsules, and compare four memory conditions and an
-irrelevant-memory control on the same held-out tasks. Use offline fixtures for continuous
-verification and a separate small local-model pilot if feasible.
+Implemented. The delivery benchmark varies remedy sequences, missing or stale
+information, retry paths, and tool availability across separate partitions.
+The inducer replays successful training traces and extracts one guarded
+procedure per trace. Transfer checks the public task and tool interface.
+The paired evaluation runs no-memory, raw-trajectory, summary, capsule, and
+irrelevant-memory conditions and exports JSON, CSV, and Markdown.
 
 ## Beyond Milestone 2
 
@@ -20,5 +22,6 @@ verification and a separate small local-model pilot if feasible.
 - Explore learned compatibility, stricter evidence provenance, and negative-transfer analysis.
 - Add a versioned capability registry and broader tool and provider coverage.
 
-The replacement reference agent is deterministic. Its smoke-test performance measures
-runtime correctness and provides no estimate of cross-model transfer.
+Offline fixture results measure the deterministic framework. Cross-model
+learning requires separate evaluations with real model adapters, larger
+partitions, and evidence beyond these fixtures.

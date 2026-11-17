@@ -42,3 +42,10 @@ jobs:
           trajyn demo --seed 42 --split test --output runs/first.jsonl
           trajyn demo --seed 42 --split test --output runs/second.jsonl
           cmp runs/first.jsonl runs/second.jsonl
+      - name: Evaluate paired conditions offline
+        run: |
+          trajyn collect --seeds 0,1,2,3,4
+          trajyn induce --created-at 2026-01-01T00:00:00+00:00
+          trajyn evaluate --seeds 200,201,202,203 --no-timing
+          trajyn compare
+          cmp runs/evaluation/comparison.md reports/comparison.md

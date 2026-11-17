@@ -6,10 +6,10 @@ agent can help another agent solve structurally related tasks. The
 The [roadmap](ROADMAP.md) tracks milestones and research limitations. TRAJYN is
 distributed under the [Apache License 2.0](LICENSE).
 
-Milestone 1 provides a synthetic support API, a state verifier, a bounded agent runner,
-a versioned JSONL trajectory format, and a typed capability schema. The offline
-reference agent follows fixed rules and makes no model calls. Live model adapters,
-capability induction, and comparative transfer evaluation belong to later milestones.
+The runtime executes seeded synthetic support tasks with a bounded agent interface,
+state verifiers, and versioned JSONL trajectories. It extracts guarded capability
+capsules from replayed training traces and compares five paired memory conditions.
+Offline reference and target agents follow fixed rules.
 
 The [delivery-exception benchmark](docs/BENCHMARK.md) adds conditional remedies,
 recoverable tool failures, stale observations, and split-specific tool availability.
@@ -29,6 +29,23 @@ python -m venv .venv
 On macOS or Linux, use `.venv/bin/python` and `.venv/bin/trajyn`. The package also
 supports `python -m trajyn`. Installation fetches development dependencies. Task
 generation, execution, and tests run offline with no API keys.
+
+## Reproduce the offline evaluation
+
+```powershell
+.venv/Scripts/trajyn.exe collect
+.venv/Scripts/trajyn.exe induce --created-at 2026-01-01T00:00:00+00:00
+.venv/Scripts/trajyn.exe evaluate
+.venv/Scripts/trajyn.exe compare
+```
+
+The default plan collects training seeds 0–7 and evaluates test seeds 200–207.
+Runs produce per-attempt trajectories and `results.json`, `results.csv`, and
+`comparison.md` under `runs/evaluation/`. Add `--no-timing` for byte-stable
+results. The [evaluation protocol](docs/EVALUATION.md) describes retrieval,
+capsule checks, paired metrics, and methodological limits.
+
+## Task generation and smoke runs
 
 Generation writes one task per line to `data/generated/tasks.jsonl` by default.
 Each seed produces one task in the selected split. The demo writes to `runs/demo.jsonl`
@@ -56,9 +73,9 @@ only after writing the full result.
 identity and returns one structured `AgentDecision` per turn, or `None` to stop.
 The runner keeps environment state private and records only typed public data.
 `CapabilityCapsule` defines versioned goal, applicability, tool, procedure,
-verifier, evidence, confidence, and limitation fields. At this milestone, validation
-covers the shape of a capsule. A future inducer must establish that its evidence
-actually supports the procedure.
+verifier, evidence, confidence, and limitation fields. The inducer replays a
+training trajectory and checks every recorded tool observation and the final
+verifier result before binding arguments to live task and observation fields.
 
 ## Trajectory format
 
