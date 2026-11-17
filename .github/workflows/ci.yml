@@ -49,3 +49,24 @@ jobs:
           trajyn evaluate --seeds 200,201,202,203 --no-timing
           trajyn compare
           cmp runs/evaluation/comparison.md reports/comparison.md
+      - name: Replay archived local pilot offline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from trajyn.capability import read_capsules
+          from trajyn.evaluation import read_sources
+          from trajyn.induction import induce
+          from trajyn.provenance import read_trajectory
+          from trajyn.report import read_evaluation
+
+          root = Path("examples/local-pilot/action-first")
+          sources = read_sources(root / "source")
+          capsules = read_capsules(root / "capsules.jsonl")
+          for source, capsule in zip(sources, capsules, strict=True):
+              assert capsule == induce(source, created_at=capsule.created_at)
+          result = read_evaluation(root / "evaluation/results.json")
+          for row in result.trials:
+              trace = read_trajectory(root / "evaluation" / row.trajectory_file)
+              assert trace.trajectory_id == row.trajectory_id
+              assert trace.verification.passed == row.passed
+          PY

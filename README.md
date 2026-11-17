@@ -45,6 +45,9 @@ Runs produce per-attempt trajectories and `results.json`, `results.csv`, and
 results. The [evaluation protocol](docs/EVALUATION.md) describes retrieval,
 capsule checks, paired metrics, and methodological limits.
 
+The opt-in [local-model pilot](docs/LOCAL_PILOT.md) runs two distinct installed
+Ollama model families through the same interface and writes separate results.
+
 ## Task generation and smoke runs
 
 Generation writes one task per line to `data/generated/tasks.jsonl` by default.

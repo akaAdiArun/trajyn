@@ -132,6 +132,13 @@ class DeliveryEnvironment:
         }
 
     def execute(self, action: ToolAction) -> Observation:
+        return self._execute(action)
+
+    def replay(self, action: ToolAction, recorded_code: str) -> Observation:
+        # Earlier traces could report any mismatched field before JSON sorted the keys.
+        return self._execute(action, preferred_mismatch=recorded_code.removesuffix("_mismatch"))
+
+    def _execute(self, action: ToolAction, *, preferred_mismatch: str | None = None) -> Observation:
         if action.tool not in self._parameters:
             return Observation(False, "unknown_tool")
         if action.arguments.keys() != self._parameters[action.tool] or any(
@@ -145,9 +152,12 @@ class DeliveryEnvironment:
             "product_id": self._product,
             "receipt_id": self._receipt,
         }
-        for name, value in action.arguments.items():
-            if value != expected[name]:
-                return Observation(False, f"{name}_mismatch")
+        mismatches = sorted(
+            name for name, value in action.arguments.items() if value != expected[name]
+        )
+        if mismatches:
+            name = preferred_mismatch if preferred_mismatch in mismatches else mismatches[0]
+            return Observation(False, f"{name}_mismatch")
 
         match action.tool:
             case "read_case":

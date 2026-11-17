@@ -24,6 +24,8 @@ from trajyn.evaluation import (
     validate_seeds,
 )
 from trajyn.models import Split
+from trajyn.ollama import InferenceOptions, OllamaConnection
+from trajyn.pilot import SOURCE_SEEDS, TARGET_SEEDS, run_pilot
 from trajyn.recording import encode_json, write_jsonl, write_text, write_trajectory
 from trajyn.report import read_evaluation, render_report, write_evaluation
 from trajyn.runner import run_task
@@ -101,6 +103,23 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
             result = read_evaluation(args.results)
             write_text(args.output, render_report(result))
             return {"trial_count": len(result.trials)}
+        case "pilot":
+            connection = OllamaConnection(
+                args.ollama_url,
+                InferenceOptions(
+                    timeout_seconds=args.inference_timeout,
+                    tool_mode=args.tool_mode,
+                ),
+            )
+            return run_pilot(
+                args.output,
+                connection,
+                args.source_model,
+                args.target_model,
+                args.source_seeds,
+                args.target_seeds,
+                args.max_steps,
+            )
         case _:
             raise ValueError("unknown experiment command")
 
@@ -124,12 +143,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     induction = commands.add_parser("induce", help="derive capsules from verified training data")
     evaluation = commands.add_parser("evaluate", help="run paired held-out memory conditions")
     comparison = commands.add_parser("compare", help="regenerate Markdown from a results document")
+    pilot = commands.add_parser("pilot", help="opt in to a bounded two-model local experiment")
     sources_path = Path("runs/source")
     capsules_path = Path("capsules/induced.jsonl")
     evaluation_path = Path("runs/evaluation")
     collect.add_argument("--output", type=Path, default=sources_path)
     collect.add_argument("--seeds", type=_seeds, default=TRAIN_SEEDS)
-    for command in (collect, evaluation):
+    for command in (collect, evaluation, pilot):
         command.add_argument("--max-steps", type=_positive, default=MAX_STEPS)
     for command in (induction, evaluation):
         command.add_argument("--trajectories", type=Path, default=sources_path)
@@ -144,10 +164,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluation.add_argument("--no-timing", action="store_true")
     comparison.add_argument("--results", type=Path, default=evaluation_path / "results.json")
     comparison.add_argument("--output", type=Path, default=Path("reports/comparison.md"))
+    pilot.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    pilot.add_argument("--source-model", required=True)
+    pilot.add_argument("--target-model", required=True)
+    pilot.add_argument("--source-seeds", type=_seeds, default=SOURCE_SEEDS)
+    pilot.add_argument("--target-seeds", type=_seeds, default=TARGET_SEEDS)
+    pilot.add_argument("--inference-timeout", type=_positive, default=30)
+    pilot.add_argument("--tool-mode", choices=("native", "json"), default="native")
+    pilot.add_argument("--output", type=Path, default=Path("runs/local-pilot"))
 
     args = parser.parse_args(argv)
     try:
-        if args.command in {"collect", "induce", "evaluate", "compare"}:
+        if args.command in {"collect", "induce", "evaluate", "compare", "pilot"}:
             print(encode_json({**_experiment(args), "output": str(args.output)}))
             return 0
         task_generator = generate_delivery_task if args.suite == "delivery" else generate_task

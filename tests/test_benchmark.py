@@ -93,3 +93,16 @@ def test_bad_link_and_unavailable_tool_leave_case_open() -> None:
         == "parcel_id_mismatch"
     )
     assert "case_not_closed" in env.verify().failures
+
+
+def test_link_validation_is_order_independent_and_replays_legacy_errors() -> None:
+    task = generate_delivery_task(200, Split.TEST)
+    env = DeliveryEnvironment(task)
+    before = env.verify()
+    action = ToolAction("issue_refund", {"ticket_id": "wrong-ticket", "parcel_id": "wrong-parcel"})
+    reordered = ToolAction("issue_refund", dict(reversed(tuple(action.arguments.items()))))
+    assert env.execute(action) == env.execute(reordered)
+    assert env.execute(action).code == "parcel_id_mismatch"
+    assert env.replay(reordered, "ticket_id_mismatch").code == "ticket_id_mismatch"
+    assert env.replay(reordered, "product_id_mismatch").code == "parcel_id_mismatch"
+    assert env.verify() == before
