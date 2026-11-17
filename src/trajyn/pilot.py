@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from trajyn.benchmark import generate_delivery_task
+from trajyn.diagnostics import ToolDiagnostics, diagnose
 from trajyn.evaluation import EvaluationPlan, collect_sources, evaluate, validate_seeds
 from trajyn.induction import induce
-from trajyn.models import Split
-from trajyn.ollama import PROMPT_REVISION, LocalModel, OllamaAgent, OllamaConnection
-from trajyn.recording import write_jsonl
+from trajyn.models import Split, Trajectory
+from trajyn.ollama import PROMPT_REVISION, LocalModel, ModelProposal, OllamaAgent, OllamaConnection
+from trajyn.provenance import read_trajectory
+from trajyn.recording import write_jsonl, write_trajectory
 from trajyn.report import write_evaluation
+from trajyn.runner import run_task
 
 SOURCE_SEEDS = (0, 1, 2, 3)
 TARGET_SEEDS = (200, 202)
@@ -23,17 +27,75 @@ class InferenceRecord:
     input_tokens: int
     output_tokens: int
     termination: str
+    proposals: tuple[ModelProposal, ...]
+    diagnostics: ToolDiagnostics
 
 
-def _usage(agent: OllamaAgent, seed: int, condition: str | None = None) -> InferenceRecord:
+def _usage(
+    agent: OllamaAgent, trajectory: Trajectory, condition: str | None = None
+) -> InferenceRecord:
     return InferenceRecord(
-        seed,
+        trajectory.task.seed,
         condition,
         agent.call_count,
         agent.input_tokens,
         agent.output_tokens,
         agent.termination or "action_limit",
+        tuple(agent.proposals),
+        diagnose(trajectory),
     )
+
+
+def calibrate_models(
+    output: Path,
+    connection: OllamaConnection,
+    names: tuple[str, ...],
+    seeds: tuple[int, ...],
+    max_steps: int,
+) -> dict[str, object]:
+    """Run no-memory validation attempts for each supplied model."""
+    validate_seeds(seeds)
+    if not names or len(set(names)) != len(names):
+        raise ValueError("pass distinct model names")
+    configurations = tuple(connection.model(name) for name in names)
+    records = []
+    server = connection.api("/api/version").get("version")
+    for index, model in enumerate(configurations):
+        for seed in seeds:
+            agent = OllamaAgent(connection, model)
+            attempt = run_task(
+                generate_delivery_task(seed, Split.VALIDATION),
+                agent,
+                max_steps=max_steps,
+                measure_time=True,
+            )
+            path = f"model-{index}/{seed}.jsonl"
+            write_trajectory(output / path, attempt)
+            records.append(
+                {
+                    "model": model,
+                    "seed": seed,
+                    "trajectory": path,
+                    "trajectory_id": attempt.trajectory_id,
+                    "verified": attempt.verification.passed,
+                    "inference": _usage(agent, attempt),
+                }
+            )
+            write_jsonl(
+                output / "calibration.json",
+                [
+                    {
+                        "prompt_revision": PROMPT_REVISION,
+                        "server_version": server,
+                        "options": connection.options,
+                        "split": Split.VALIDATION,
+                        "seeds": seeds,
+                        "max_steps": max_steps,
+                        "attempts": records,
+                    }
+                ],
+            )
+    return {"attempts": len(records), "verified": sum(row["verified"] is True for row in records)}
 
 
 def run_pilot(
@@ -80,7 +142,7 @@ def run_pilot(
         agent_factory=lambda: track(source_model, source_agents),
     )
     metadata["source_inference"] = [
-        _usage(agent, seed) for agent, seed in zip(source_agents, source_seeds, strict=True)
+        _usage(agent, attempt) for agent, attempt in zip(source_agents, sources, strict=True)
     ]
     created_at = datetime.now(UTC)
     capsules = []
@@ -119,7 +181,9 @@ def run_pilot(
     )
     write_evaluation(output / "evaluation", result)
     metadata["target_inference"] = [
-        _usage(agent, row.seed, row.condition.value)
+        _usage(
+            agent, read_trajectory(output / "evaluation" / row.trajectory_file), row.condition.value
+        )
         for agent, row in zip(target_agents, result.trials, strict=True)
     ]
     counts.update(

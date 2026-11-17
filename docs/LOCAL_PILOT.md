@@ -29,6 +29,14 @@ Use `--inference-timeout` to record a longer limit for slow model startup.
 The report also records the prompt revision. The prompt encourages the model
 to advance from the public history and retry only after a recoverable failure.
 
+`calibrate --models <names>` runs no-memory validation tasks. The default
+argument mode is unaided. With `--tool-mode json --grounding public`, the model
+chooses a tool and the runtime binds its arguments from the current ticket and
+earlier successful tool observations. Missing inputs still reach validation
+as missing. The mode applies to the entire experiment and records original
+proposals and source-step bindings in the inference metadata. Tool, identifier,
+repetition, recovery, and verification counts come from the executed trace.
+
 The pilot keeps all collected source traces, including failures. It induces
 capsules only from independently verified and groundable traces. If no source
 qualifies, the pilot records that outcome before ending. When a target run

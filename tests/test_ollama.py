@@ -4,7 +4,7 @@ import pytest
 
 from trajyn.agent import AgentContext
 from trajyn.benchmark import generate_delivery_task
-from trajyn.models import ToolAction, Usage, public_task
+from trajyn.models import Observation, Step, ToolAction, Usage, public_task
 from trajyn.ollama import InferenceOptions, LocalModel, OllamaAgent, OllamaConnection
 from trajyn.pilot import run_pilot
 from trajyn.provenance import read_trajectory
@@ -79,6 +79,27 @@ def test_schema_mode_executes_a_model_selected_action() -> None:
     assert "tools" not in request
     assert '"enum":["read_case","inspect_parcel"' in encode_json(request["format"])
     assert "Public tool history" in encode_json(request["messages"])
+
+
+def test_public_grounding_keeps_original_proposal_and_ignores_failed_observations() -> None:
+    connection = FixtureConnection(InferenceOptions(tool_mode="json", grounding="public"))
+    connection.tool_ticket = "model-proposed-id"
+    task = generate_delivery_task(202)
+    agent = OllamaAgent(connection, connection.model("second"))
+    failed = Step(1, ToolAction("read_case"), Observation(False, "failed", {"ticket_id": "fake"}))
+    context = AgentContext(public_task(task), environment_for(task).tools, (failed,), 8)
+    decision = agent.decide(context)
+    assert decision is not None
+    assert decision.action == ToolAction("read_case", {"ticket_id": task.ticket_id})
+    (proposal,) = agent.proposals
+    assert proposal.original == ToolAction("read_case", {"ticket_id": "model-proposed-id"})
+    assert proposal.bindings[0].source_step == 0
+    assert '"required":["action"]' in encode_json(connection.requests[0]["format"])
+
+
+def test_native_mode_rejects_deterministic_assistance() -> None:
+    with pytest.raises(ValueError, match="JSON action mode"):
+        InferenceOptions(grounding="public")
 
 
 def test_local_pilot_preserves_source_failure_and_prevents_unfounded_transfer(

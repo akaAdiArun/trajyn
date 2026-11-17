@@ -3,10 +3,12 @@
 import json
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPException
+from math import isfinite
 from typing import Literal
 from urllib.parse import urlsplit
 
 from trajyn.agent import AgentContext
+from trajyn.grounding import PublicBinding, bind_public_action
 from trajyn.models import AgentDecision, AgentIdentity, Scalar, ToolAction, ToolSpec, Usage
 from trajyn.recording import encode_json
 
@@ -28,6 +30,19 @@ class InferenceOptions:
     output_tokens: int = 160
     timeout_seconds: int = 30
     tool_mode: Literal["native", "json"] = "native"
+    grounding: Literal["none", "public"] = "none"
+
+    def __post_init__(self) -> None:
+        if self.grounding == "public" and self.tool_mode != "json":
+            raise ValueError("public grounding requires JSON action mode")
+
+
+@dataclass(frozen=True, slots=True)
+class ModelProposal:
+    call: int
+    original: ToolAction | None
+    bindings: tuple[PublicBinding, ...] = ()
+    diagnostic: str | None = None
 
 
 class OllamaError(ValueError):
@@ -131,7 +146,9 @@ def _tool(tool: ToolSpec) -> dict[str, object]:
     }
 
 
-def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[str, object]]:
+def _messages(
+    context: AgentContext, *, structured: bool = False, grounded: bool = False
+) -> list[dict[str, object]]:
     system = (
         "You operate a synthetic delivery-support service. Make exactly one listed tool call "
         "per turn using identifiers from this task and its tool results. Use the authoritative "
@@ -149,7 +166,14 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
             "if a tool or expected observation differs.\n" + encode_json(context.memory)
         )
     if structured:
-        system += " Return a JSON object with action and arguments fields."
+        if grounded:
+            system += (
+                " Return only an action name in the JSON action field. The runtime binds "
+                "arguments from this task and successful observations. Choose a tool whose "
+                "required identifiers are already available. Read results before moving on."
+            )
+        else:
+            system += " Return a JSON object with action and arguments fields."
         task += "\nAvailable tools:\n" + encode_json(context.tools)
         task += "\nPublic tool history in order:\n" + encode_json(
             [{"action": step.action, "observation": step.observation} for step in context.steps]
@@ -187,14 +211,19 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
     return messages
 
 
-def _response_schema(tools: tuple[ToolSpec, ...]) -> dict[str, object]:
+def _response_schema(tools: tuple[ToolSpec, ...], *, grounded: bool = False) -> dict[str, object]:
+    properties: dict[str, object] = {
+        "action": {"type": "string", "enum": [tool.name for tool in tools]}
+    }
+    if not grounded:
+        properties["arguments"] = {
+            "type": "object",
+            "additionalProperties": {"type": "string"},
+        }
     return {
         "type": "object",
-        "properties": {
-            "action": {"type": "string", "enum": [tool.name for tool in tools]},
-            "arguments": {"type": "object", "additionalProperties": {"type": "string"}},
-        },
-        "required": ["action", "arguments"],
+        "properties": properties,
+        "required": list(properties),
         "additionalProperties": False,
     }
 
@@ -212,6 +241,7 @@ class OllamaAgent:
         self.input_tokens = 0
         self.output_tokens = 0
         self.termination: str | None = None
+        self.proposals: list[ModelProposal] = []
 
     def decide(self, context: AgentContext) -> AgentDecision | None:
         if context.steps and context.steps[-1].observation.code == "case_closed":
@@ -220,11 +250,12 @@ class OllamaAgent:
 
         options = self.connection.options
         structured = options.tool_mode == "json"
+        grounded = options.grounding == "public"
         payload: dict[str, object] = {
             "model": self.model.name,
             "stream": False,
             "keep_alive": "3m",
-            "messages": _messages(context, structured=structured),
+            "messages": _messages(context, structured=structured, grounded=grounded),
             "options": {
                 "seed": options.seed,
                 "num_ctx": options.context_tokens,
@@ -235,7 +266,7 @@ class OllamaAgent:
         if self.model.supports_thinking:
             payload["think"] = False
         if structured:
-            payload["format"] = _response_schema(context.tools)
+            payload["format"] = _response_schema(context.tools, grounded=grounded)
         else:
             payload["tools"] = [_tool(tool) for tool in context.tools]
         self.call_count += 1
@@ -261,19 +292,25 @@ class OllamaAgent:
                 if not isinstance(calls, list):
                     raise OllamaError("invalid tool_calls response")
                 if not calls:
-                    self.termination = "model_returned_no_tool"
-                    return None
+                    raise OllamaError("model_returned_no_tool")
                 function = _object(_object(calls[0]).get("function"))
                 name = function.get("name")
             if not isinstance(name, str):
                 raise OllamaError("tool call has no name")
             arguments: dict[str, Scalar] = {}
-            for field, value in _object(function.get("arguments")).items():
+            raw_arguments = function.get("arguments", {}) if grounded else function.get("arguments")
+            for field, value in _object(raw_arguments).items():
+                if isinstance(value, float) and not isfinite(value):
+                    raise OllamaError("tool argument is not finite")
                 if value is None or isinstance(value, (str, bool, int, float)):
                     arguments[field] = value
                 else:
                     raise OllamaError("tool argument is not a JSON scalar")
-            return AgentDecision(ToolAction(name, arguments), Usage(inputs, outputs))
+            proposal = ToolAction(name, arguments)
+            action, bindings = bind_public_action(context, name) if grounded else (proposal, ())
+            self.proposals.append(ModelProposal(self.call_count, proposal, bindings))
+            return AgentDecision(action, Usage(inputs, outputs))
         except OllamaError as error:
             self.termination = str(error)
+            self.proposals.append(ModelProposal(self.call_count, None, diagnostic=self.termination))
             return None
