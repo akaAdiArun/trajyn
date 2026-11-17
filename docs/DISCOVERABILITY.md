@@ -15,3 +15,31 @@ did not yield usable result listings. The Google index state remains unverified.
 The repository description now names TRAJYN as an experimental experience
 layer for agents. The repository topics describe agent memory, AI
 infrastructure, experience learning, open source, and Python.
+
+## Site and Search Console
+
+The Pages workflow builds static HTML from `site/` and uses the Pages-provided
+base URL for canonical, Open Graph, JSON-LD, and sitemap URLs. The source
+trace and capsule are served at project-relative paths. Hosting operates
+under `/trajyn/`. Crawlers read `robots.txt` on the hostname root.
+[Google's robots specification](https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec)
+
+1. In [Google Search Console](https://search.google.com/search-console/welcome),
+   add the URL-prefix property `https://akaadiarun.github.io/trajyn/`.
+2. Choose **HTML tag**. Copy the value of the `content` attribute from the tag.
+   In TRAJYN's GitHub **Settings → Secrets and variables → Actions → Variables**,
+   create the repository variable `GOOGLE_SITE_VERIFICATION` with that value.
+3. Run the [Project website workflow](https://github.com/akaAdiArun/trajyn/actions/workflows/pages.yml)
+   on `main`. View the live homepage source and confirm the tag appears.
+4. Click **Verify** in Search Console. In **Sitemaps**, submit `sitemap.xml`
+   once. Keep the verification variable in place for future checks.
+
+The variable takes the account-specific value from Search Console. Search
+engines control indexing and ranking, and reporting can lag deployment.
+[Verification instructions](https://support.google.com/webmasters/answer/9008080) ·
+[Sitemap instructions](https://support.google.com/webmasters/answer/7451001)
+
+The website uses its own original [Open Graph image](../site/assets/social-preview.png).
+GitHub's repository card has a separate preview setting. A repository
+maintainer can upload the same image under **Settings → Social preview**.
+[GitHub preview instructions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)
