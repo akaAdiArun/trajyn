@@ -98,6 +98,7 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
                 read_capsules(args.capsules),
                 args.output,
                 plan=plan,
+                branch_aware=args.branch_aware,
             )
             write_evaluation(args.output, result)
             return {
@@ -141,6 +142,7 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
                 workflow=workflow,
                 expected_source_digest=args.source_digest,
                 expected_target_digest=args.target_digest,
+                branch_aware=args.branch_aware,
             )
         case _:
             raise ValueError("unknown experiment command")
@@ -190,6 +192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     evaluation.add_argument("--seeds", type=_seeds)
     evaluation.add_argument("--no-timing", action="store_true")
+    evaluation.add_argument("--branch-aware", action="store_true", help="add condition F")
     comparison.add_argument("--results", type=Path, default=evaluation_path / "results.json")
     comparison.add_argument("--output", type=Path, default=Path("reports/comparison.md"))
     analysis.add_argument("--results", type=Path, default=evaluation_path / "results.json")
@@ -203,6 +206,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pilot.add_argument("--target-model", required=True)
     pilot.add_argument("--source-digest")
     pilot.add_argument("--target-digest")
+    pilot.add_argument("--branch-aware", action="store_true", help="add condition F")
     pilot.add_argument("--source-seeds", type=_seeds, default=SOURCE_SEEDS)
     pilot.add_argument("--target-seeds", type=_seeds, default=TARGET_SEEDS)
     pilot.add_argument("--output", type=Path, default=Path("runs/local-pilot"))

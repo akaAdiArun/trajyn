@@ -10,6 +10,7 @@ from trajyn.benchmark import generate_delivery_task
 from trajyn.capability import read_capsules
 from trajyn.cli import main
 from trajyn.evaluation import (
+    BASE_CONDITIONS,
     Condition,
     EvaluationPlan,
     collect_sources,
@@ -65,7 +66,7 @@ def test_paired_cli_pipeline_exports_replayable_data_and_comparison(tmp_path: Pa
     assert result_file.read_bytes() == untimed
     result = read_evaluation(result_file)
     assert len(result.trials) == 20
-    assert {row.condition for row in result.trials} == set(Condition)
+    assert {row.condition for row in result.trials} == set(BASE_CONDITIONS)
     assert [(row.seed, row.condition) for row in result.trials if not row.passed] == [
         (200, Condition.SUMMARY)
     ]

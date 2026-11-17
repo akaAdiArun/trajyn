@@ -67,7 +67,7 @@ def summarize_study(path: Path) -> tuple[ConditionSummary, ...]:
     evaluation = read_evaluation(path)
     pairs = paired_outcomes(evaluation)
     summaries = []
-    for condition in Condition:
+    for condition in evaluation.conditions:
         rows = [row for row in evaluation.trials if row.condition == condition]
         comparison = [pair for pair in pairs if pair.condition == condition]
         scored: list[ToolDiagnostics] = []
