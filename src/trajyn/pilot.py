@@ -1,17 +1,25 @@
 """Separate, bounded local-model pilot using the paired evaluation engine."""
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from trajyn.benchmark import DELIVERY_V1, generate_delivery_task
+from trajyn.capability import CapabilityCapsule, read_capsules
 from trajyn.diagnostics import ToolDiagnostics, diagnose
-from trajyn.evaluation import EvaluationPlan, collect_sources, evaluate, validate_seeds
+from trajyn.evaluation import (
+    EvaluationPlan,
+    collect_sources,
+    evaluate,
+    read_sources,
+    validate_seeds,
+)
 from trajyn.induction import induce
-from trajyn.models import Split, Trajectory
+from trajyn.models import AgentIdentity, Split, Trajectory, public_task
 from trajyn.ollama import PROMPT_REVISION, LocalModel, ModelProposal, OllamaAgent, OllamaConnection
 from trajyn.provenance import read_trajectory
-from trajyn.recording import write_jsonl, write_trajectory
+from trajyn.recording import encode_json, write_jsonl, write_text, write_trajectory
 from trajyn.report import write_evaluation
 from trajyn.runner import run_task
 
@@ -114,6 +122,7 @@ def run_pilot(
     expected_source_digest: str | None = None,
     expected_target_digest: str | None = None,
     branch_aware: bool = False,
+    source_archive: Path | None = None,
 ) -> dict[str, object]:
     validate_seeds(source_seeds)
     plan = EvaluationPlan(target_seeds, Split.TEST, max_steps)
@@ -146,21 +155,57 @@ def run_pilot(
         "options": connection.options,
         "workflow": workflow,
         "branch_aware": branch_aware,
-        "maximum_model_calls": (len(source_seeds) + (6 if branch_aware else 5) * len(target_seeds))
+        "maximum_model_calls": (
+            (len(source_seeds) if source_archive is None else 0)
+            + (6 if branch_aware else 5) * len(target_seeds)
+        )
         * max_steps,
     }
-    sources = collect_sources(
-        output / "source",
-        source_seeds,
-        max_steps=max_steps,
-        measure_time=True,
-        workflow=workflow,
-        agent_factory=lambda: track(source_model, source_agents),
-    )
-    metadata["source_inference"] = [
-        _usage(agent, attempt) for agent, attempt in zip(source_agents, sources, strict=True)
-    ]
-    created_at = datetime.now(UTC)
+    archived_capsules: tuple[CapabilityCapsule, ...] = ()
+    if source_archive is None:
+        sources = collect_sources(
+            output / "source",
+            source_seeds,
+            max_steps=max_steps,
+            measure_time=True,
+            workflow=workflow,
+            agent_factory=lambda: track(source_model, source_agents),
+        )
+        metadata["source_inference"] = [
+            _usage(agent, attempt) for agent, attempt in zip(source_agents, sources, strict=True)
+        ]
+        created_at = datetime.now(UTC)
+    else:
+        if source_archive.resolve() == output.resolve():
+            raise ValueError("source archive and pilot output must be different directories")
+        archived = json.loads((source_archive / "pilot.json").read_text(encoding="utf-8"))
+        sources = read_sources(source_archive / "source")
+        identity = AgentIdentity("ollama", source_model.name, source_model.digest)
+        if (
+            archived.get("schema_version") != 1
+            or archived.get("status") != "completed"
+            or archived.get("prompt_revision") != PROMPT_REVISION
+            or encode_json(archived.get("source_model")) != encode_json(source_model)
+            or tuple(source.task.seed for source in sources) != source_seeds
+            or any(
+                source.agent != identity
+                or source.task.split != Split.TRAIN
+                or public_task(source.task).workflow != workflow
+                or source.max_steps != max_steps
+                for source in sources
+            )
+        ):
+            raise ValueError("source archive does not match the requested source configuration")
+        archived_capsules = read_capsules(source_archive / "capsules.jsonl")
+        if not archived_capsules:
+            raise ValueError("source archive contains no capsules")
+        created_at = archived_capsules[0].created_at
+        metadata["source_inference"] = archived["source_inference"]
+        metadata["source_options"] = archived.get("source_options", archived["options"])
+        metadata["source_server_version"] = archived.get(
+            "source_server_version", archived["server_version"]
+        )
+        metadata["source_reused"] = True
     capsules = []
     accepted_sources = []
     exclusions = {}
@@ -174,6 +219,16 @@ def run_pilot(
             exclusions[source.trajectory_id] = str(error)
         else:
             accepted_sources.append(source)
+
+    if source_archive is not None:
+        if tuple(capsules) != archived_capsules:
+            raise ValueError("source archive capsules disagree with independent induction")
+        write_text(
+            output / "source/manifest.json",
+            (source_archive / "source/manifest.json").read_text(encoding="utf-8"),
+        )
+        for source in sources:
+            write_trajectory(output / f"source/source-{source.task.seed}.jsonl", source)
 
     metadata["induction_exclusions"] = exclusions
     counts: dict[str, object] = {

@@ -41,6 +41,8 @@ class BranchCandidate:
 
 
 def _mismatch(candidate: BranchCandidate, steps: tuple[Step, ...]) -> str | None:
+    if len(steps) > len(candidate.memory.steps):
+        return "public_operation_diverged"
     for observed, expected in zip(steps, candidate.memory.steps, strict=False):
         if observed.action.tool != expected.tool:
             return "public_operation_diverged"
