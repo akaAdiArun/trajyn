@@ -12,6 +12,8 @@ documented, and tested.
 - Report observed results, including failures. Never fabricate benchmarks, improvements,
   or research claims. Preserve experiment provenance, including model identifiers and
   versions when available.
+- Treat the README, visual documentation, and technical credibility as product priorities.
+  Use accessible repository-hosted graphics and trace every experiment claim to recorded data.
 - Keep credentials, private personal information, generated bulk data, and unrelated
   local files out of Git.
 - Keep repository files, commits, and pull requests focused on the project. Omit unnecessary

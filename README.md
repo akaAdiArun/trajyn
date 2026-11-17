@@ -1,109 +1,130 @@
-# TRAJYN
+<p align="center">
+  <img src="docs/assets/wordmark.png" alt="TRAJYN wordmark with cyan and violet execution paths" width="800">
+</p>
 
-TRAJYN is a Python research runtime for studying whether verified experience from one
-agent can help another agent solve structurally related tasks. The
-[project charter](docs/PROJECT_BRIEF.md) describes the research program.
-The [roadmap](ROADMAP.md) tracks milestones and research limitations. TRAJYN is
-distributed under the [Apache License 2.0](LICENSE).
+<h1 align="center">The Experience Layer for AI Agents.</h1>
 
-The runtime executes seeded synthetic support tasks with a bounded agent interface,
-state verifiers, and versioned JSONL trajectories. It extracts guarded capability
-capsules from replayed training traces and compares five paired memory conditions.
-Offline reference and target agents follow fixed rules.
+<p align="center"><strong>Experience is portable. Capability is earned.</strong></p>
 
-The [delivery-exception benchmark](docs/BENCHMARK.md) adds conditional remedies,
-recoverable tool failures, stale observations, and split-specific tool availability.
-Use `--suite delivery` with `generate` or `demo` to exercise it.
+<p align="center">
+  <a href="https://github.com/akaAdiArun/trajyn/actions/workflows/ci.yml"><img src="https://github.com/akaAdiArun/trajyn/actions/workflows/ci.yml/badge.svg?branch=main" alt="GitHub Actions CI"></a>
+  <a href="pyproject.toml"><img src="docs/assets/badge-python.svg" alt="Python 3.12 and newer"></a>
+  <a href="LICENSE"><img src="docs/assets/badge-license.svg" alt="Apache License 2.0"></a>
+  <a href="ROADMAP.md"><img src="docs/assets/badge-status.svg" alt="Experimental project status"></a>
+</p>
 
-## Get started
+<p align="center">
+  <a href="#architecture">Architecture</a> ·
+  <a href="#experiments-and-results">Experiments</a> ·
+  <a href="docs/PROJECT_BRIEF.md">Documentation</a> ·
+  <a href="ROADMAP.md">Roadmap</a>
+</p>
 
-Use Python 3.12 or newer. In PowerShell, run these commands from the repository root.
+TRAJYN is experimental infrastructure for turning a verified agent run into
+a portable procedure that another agent can try. It records what the first
+agent did, checks what actually changed, and packages the usable steps with
+their evidence and tool requirements.
 
-```powershell
+## Why TRAJYN?
+
+Agents repeatedly solve related tasks in separate sessions, tool environments,
+and model families. A transcript can show what happened on one task. To reuse
+that experience, a different agent still needs to identify which steps apply,
+where argument values come from, and what counts as success.
+
+Suppose one agent resolves a lost delivery. TRAJYN can capture how it reads the
+case, gets the parcel and product from the carrier, and uses the remedy receipt
+to close the case. A second agent receives a procedure with those dependencies.
+It supplies identifiers from its own task. A tool-interface check can reject a
+warehouse procedure on a locker-only task.
+
+## How it works
+
+![Animated pipeline from Agent A and tool execution through trajectory recording, state verification, induction, capsule compatibility, Agent B, and paired evaluation](docs/assets/pipeline.gif)
+
+[Still diagram](docs/assets/pipeline.png) · [Evaluation protocol](docs/EVALUATION.md)
+
+The animation illustrates the data flow. Performance is measured separately
+through paired executions with the same target agent, tasks, tools, and budget.
+
+## See TRAJYN in action
+
+![Actual verified Qwen3-8B trace on training seed 0. The four steps read the case, inspect the parcel, dispatch the replacement, and close the case. The capsule binds the dispatch parcel and product to observations 1 and 2.](docs/assets/verified-execution.png)
+
+The dispatch arguments point to steps 1 and 2 in the source trace. The capsule
+references that trace by content ID and records the supporting step indices.
+
+[Original JSONL trace](examples/local-pilot/action-first/source/source-0.jsonl) · [Capsules](examples/local-pilot/action-first/capsules.jsonl)
+
+## Architecture
+
+![TRAJYN architecture with source adapter and environment, action recorder, independent state verifier, induction and capsule, retrieval and interface checks, paired target execution, and a planned registry](docs/assets/architecture.png)
+
+The Python [agent protocol](src/trajyn/agent.py) separates model adapters from
+execution. The runner passes the public task, tool interfaces, and observations
+to the agent. The independent verifier reads resulting environment state.
+Replaying a source trajectory checks each recorded observation before induction.
+
+## Core concepts
+
+| Concept | Role |
+| --- | --- |
+| Trajectory | Ordered public tool calls, observations, model identity, and verification outcome |
+| Verified experience | A trajectory whose observable steps and final state can be replayed |
+| Capability capsule | A versioned procedure with live bindings, observation guards, tool requirements, and evidence |
+| Applicability and compatibility | Checks that the task and current tool interfaces can receive the procedure |
+| Negative transfer | A paired regression against the same agent without memory |
+
+## What works today
+
+| Available | Status |
+| --- | --- |
+| Seeded tasks, state verification, JSONL replay | Implemented |
+| Evidence-grounded induction and compatibility checks | Implemented |
+| Offline and Ollama adapters, five-condition evaluation, CSV/JSON reports | Implemented |
+| Reliable cross-model improvement | Research question |
+| Capability registry, SDKs, and distributed exchange | Planned |
+
+## Quick start
+
+Use Python 3.12 or newer.
+
+```sh
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -e '.[dev]'
-.venv/Scripts/trajyn.exe generate --seed 42 --split train --count 3
-.venv/Scripts/trajyn.exe demo --seed 42 --split test
+# Activate with .venv/Scripts/Activate.ps1 on PowerShell.
+# On macOS or Linux, run: source .venv/bin/activate
+python -m pip install -e ".[dev]"
+trajyn demo --suite delivery --split test --seed 200
+trajyn collect
+trajyn induce --created-at 2026-01-01T00:00:00+00:00
+trajyn evaluate --no-timing
+trajyn compare
 ```
 
-On macOS or Linux, use `.venv/bin/python` and `.venv/bin/trajyn`. The package also
-supports `python -m trajyn`. Installation fetches development dependencies. Task
-generation, execution, and tests run offline with no API keys.
+The offline commands write trajectories and a paired report under `runs/`.
+The [local-model guide](docs/LOCAL_PILOT.md) describes the opt-in Ollama path.
 
-## Reproduce the offline evaluation
+## Experiments and results
 
-```powershell
-.venv/Scripts/trajyn.exe collect
-.venv/Scripts/trajyn.exe induce --created-at 2026-01-01T00:00:00+00:00
-.venv/Scripts/trajyn.exe evaluate
-.venv/Scripts/trajyn.exe compare
-```
+![Milestone 2 local pilot. Each condition verified zero of two Llama 3.2 3B target tasks. Invalid calls were 16, 16, 3, 16, and 16 for conditions A through E.](docs/assets/outcomes.png)
 
-The default plan collects training seeds 0–7 and evaluates test seeds 200–207.
-Runs produce per-attempt trajectories and `results.json`, `results.csv`, and
-`comparison.md` under `runs/evaluation/`. Add `--no-timing` for byte-stable
-results. The [evaluation protocol](docs/EVALUATION.md) describes retrieval,
-capsule checks, paired metrics, and methodological limits.
+The offline fixtures verified **8/8** tasks in each condition. In the local
+pilot, Qwen3-8B verified **4/4** source tasks and produced four capsules.
+Llama 3.2 3B verified **0/2** held-out tasks in each condition. The small pilot
+leaves cross-model transfer effectiveness open.
 
-The opt-in [local-model pilot](docs/LOCAL_PILOT.md) runs two distinct installed
-Ollama model families through the same interface and writes separate results.
+[Offline comparison](examples/offline/comparison.md) · [Local-model report and failed attempts](docs/LOCAL_PILOT.md) · [Recorded results](examples/local-pilot/action-first/evaluation/results.json)
 
-## Task generation and smoke runs
+## Roadmap
 
-Generation writes one task per line to `data/generated/tasks.jsonl` by default.
-Each seed produces one task in the selected split. The demo writes to `runs/demo.jsonl`
-and prints a JSON summary with the step count and verifier result. A successful
-demo exits with status 0. Try `demo --max-steps 4` to record an incomplete attempt
-and exit with status 1. Both commands accept `--output` and replace the chosen file
-only after writing the full result.
+The [roadmap](ROADMAP.md) tracks retrieval, better controlled cross-family
+studies, and future registry and SDK work. The [charter](docs/PROJECT_BRIEF.md)
+defines the research questions and experimental controls.
 
-## How an attempt works
+## Contributing and license
 
-1. The seed and split generate a target ticket, its order, inventory, and unrelated
-   records. Train, validation, and test exercise damaged, missing, and wrong-item
-   reports, respectively, with separate SKU pools and a shared workflow.
-2. The agent receives the public task, tool specifications, its prior action and
-   observation pairs, and the step budget. The reference agent reads the ticket
-   and order, checks stock, creates a replacement, and resolves the ticket.
-3. The environment checks arguments, order eligibility, and the relationship between
-   ticket, order, and SKU. Retrying an existing replacement returns its ID without
-   reserving another unit.
-4. The verifier checks final state for the expected replacement, a correctly linked
-   resolution, exactly one unit reserved, and untouched unrelated tickets and
-   inventory. A tool response that reports success cannot substitute for these checks.
+See [AGENTS.md](AGENTS.md) for repository conventions. Run `ruff check .`,
+`ruff format --check .`, `mypy`, and `pytest` before opening a pull request.
+The README graphics have a [local renderer](docs/assets/README.md).
 
-`Agent` in `src/trajyn/agent.py` is the provider boundary. An adapter supplies a model
-identity and returns one structured `AgentDecision` per turn, or `None` to stop.
-The runner keeps environment state private and records only typed public data.
-`CapabilityCapsule` defines versioned goal, applicability, tool, procedure,
-verifier, evidence, confidence, and limitation fields. The inducer replays a
-training trajectory and checks every recorded tool observation and the final
-verifier result before binding arguments to live task and observation fields.
-
-## Trajectory format
-
-Each file contains one attempt. Every line carries `schema_version` and
-`trajectory_id`. The `start` event carries the task, seed, split, agent identity,
-and budget. One `step` event per attempted action records its one-based index,
-tool arguments, observation, and optional usage and elapsed time. The `finish`
-event carries the stop reason and the verifier's pass flag and failure codes.
-
-Identical untimed runs on the same Python version produce identical JSONL and
-content-derived trajectory IDs. Add `--timing` to capture elapsed nanoseconds
-for each tool step (including the agent decision) and the full attempt. Token
-and cost fields are optional adapter metadata. The recorder stores no hidden
-reasoning.
-
-## Development checks
-
-```powershell
-.venv/Scripts/python.exe -m ruff check .
-.venv/Scripts/python.exe -m ruff format --check .
-.venv/Scripts/python.exe -m mypy
-.venv/Scripts/python.exe -m pytest
-.venv/Scripts/python.exe -m build
-```
-
-GitHub Actions runs the same quality checks and tests, builds the wheel and
-source distribution, and runs a deterministic smoke test through the installed
-wheel's CLI.
+TRAJYN is open source under the [Apache License 2.0](LICENSE).
