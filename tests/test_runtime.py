@@ -2,7 +2,15 @@ import pytest
 
 from trajyn.agent import AgentContext, OfflineReferenceAgent
 from trajyn.environment import generate_task
-from trajyn.models import AgentDecision, AgentIdentity, Split, StopReason, ToolAction, Usage
+from trajyn.models import (
+    AgentDecision,
+    AgentIdentity,
+    Split,
+    StopReason,
+    ToolAction,
+    Usage,
+    public_task,
+)
 from trajyn.runner import run_task
 
 
@@ -42,7 +50,7 @@ def test_agent_protocol_records_failed_steps_and_optional_measurements() -> None
         identity = AgentIdentity("fixture", "invalid-action", "1")
 
         def decide(self, context: AgentContext) -> AgentDecision:
-            assert context.task == task
+            assert context.task == public_task(task)
             assert len(context.tools) == 5
             assert len(context.steps) < context.max_steps == 2
             return AgentDecision(ToolAction("unsupported"), Usage(input_tokens=12))

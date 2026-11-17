@@ -3,12 +3,12 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from trajyn.models import AgentDecision, AgentIdentity, Step, Task, ToolAction, ToolSpec
+from trajyn.models import AgentDecision, AgentIdentity, PublicTask, Step, ToolAction, ToolSpec
 
 
 @dataclass(frozen=True, slots=True)
 class AgentContext:
-    task: Task
+    task: PublicTask
     tools: tuple[ToolSpec, ...]
     steps: tuple[Step, ...]
     max_steps: int

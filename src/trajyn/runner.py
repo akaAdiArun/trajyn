@@ -5,9 +5,16 @@ from hashlib import sha256
 from time import perf_counter_ns
 
 from trajyn.agent import Agent, AgentContext
+from trajyn.benchmark import DeliveryEnvironment
 from trajyn.environment import ReplacementEnvironment
-from trajyn.models import Step, StopReason, Task, Trajectory
+from trajyn.models import DeliveryTask, Step, StopReason, Task, Trajectory, public_task
 from trajyn.recording import encode_json
+
+
+def environment_for(task: Task) -> DeliveryEnvironment | ReplacementEnvironment:
+    if isinstance(task, DeliveryTask):
+        return DeliveryEnvironment(task)
+    return ReplacementEnvironment(task)
 
 
 def run_task(
@@ -16,14 +23,15 @@ def run_task(
     if max_steps < 1:
         raise ValueError("max_steps must be positive")
 
-    environment = ReplacementEnvironment(task)
+    environment = environment_for(task)
+    public = public_task(task)
     identity = agent.identity
     steps: list[Step] = []
     stop_reason = StopReason.STEP_LIMIT
     started_ns = perf_counter_ns() if measure_time else None
     for index in range(1, max_steps + 1):
         step_started_ns = perf_counter_ns() if measure_time else None
-        decision = agent.decide(AgentContext(task, environment.tools, tuple(steps), max_steps))
+        decision = agent.decide(AgentContext(public, environment.tools, tuple(steps), max_steps))
         if decision is None:
             stop_reason = StopReason.AGENT_STOPPED
             break
