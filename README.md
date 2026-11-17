@@ -2,7 +2,7 @@
   <img src="docs/assets/wordmark.png" alt="TRAJYN wordmark with cyan and violet execution paths" width="800">
 </p>
 
-<h1 align="center">The Experience Layer for AI Agents.</h1>
+<h1 align="center">TRAJYN · The Experience Layer for AI Agents</h1>
 
 <p align="center"><strong>Experience is portable. Capability is earned.</strong></p>
 
