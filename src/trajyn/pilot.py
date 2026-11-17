@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from trajyn.benchmark import generate_delivery_task
+from trajyn.benchmark import DELIVERY_V1, generate_delivery_task
 from trajyn.diagnostics import ToolDiagnostics, diagnose
 from trajyn.evaluation import EvaluationPlan, collect_sources, evaluate, validate_seeds
 from trajyn.induction import induce
@@ -52,6 +52,8 @@ def calibrate_models(
     names: tuple[str, ...],
     seeds: tuple[int, ...],
     max_steps: int,
+    *,
+    workflow: str = DELIVERY_V1,
 ) -> dict[str, object]:
     """Run no-memory validation attempts for each supplied model."""
     validate_seeds(seeds)
@@ -64,7 +66,7 @@ def calibrate_models(
         for seed in seeds:
             agent = OllamaAgent(connection, model)
             attempt = run_task(
-                generate_delivery_task(seed, Split.VALIDATION),
+                generate_delivery_task(seed, Split.VALIDATION, workflow=workflow),
                 agent,
                 max_steps=max_steps,
                 measure_time=True,
@@ -89,6 +91,7 @@ def calibrate_models(
                         "server_version": server,
                         "options": connection.options,
                         "split": Split.VALIDATION,
+                        "workflow": workflow,
                         "seeds": seeds,
                         "max_steps": max_steps,
                         "attempts": records,
@@ -106,6 +109,10 @@ def run_pilot(
     source_seeds: tuple[int, ...] = SOURCE_SEEDS,
     target_seeds: tuple[int, ...] = TARGET_SEEDS,
     max_steps: int = 8,
+    *,
+    workflow: str = DELIVERY_V1,
+    expected_source_digest: str | None = None,
+    expected_target_digest: str | None = None,
 ) -> dict[str, object]:
     validate_seeds(source_seeds)
     plan = EvaluationPlan(target_seeds, Split.TEST, max_steps)
@@ -114,6 +121,10 @@ def run_pilot(
     source_model, target_model = connection.model(source_name), connection.model(target_name)
     if source_model.family == target_model.family or source_model.digest == target_model.digest:
         raise ValueError("pilot requires different model families")
+    if expected_source_digest is not None and source_model.digest != expected_source_digest:
+        raise ValueError("installed source digest differs from the frozen protocol")
+    if expected_target_digest is not None and target_model.digest != expected_target_digest:
+        raise ValueError("installed target digest differs from the frozen protocol")
 
     source_agents: list[OllamaAgent] = []
     target_agents: list[OllamaAgent] = []
@@ -132,6 +143,7 @@ def run_pilot(
         "source_seeds": source_seeds,
         "plan": plan,
         "options": connection.options,
+        "workflow": workflow,
         "maximum_model_calls": (len(source_seeds) + 5 * len(target_seeds)) * max_steps,
     }
     sources = collect_sources(
@@ -139,6 +151,7 @@ def run_pilot(
         source_seeds,
         max_steps=max_steps,
         measure_time=True,
+        workflow=workflow,
         agent_factory=lambda: track(source_model, source_agents),
     )
     metadata["source_inference"] = [

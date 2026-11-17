@@ -17,6 +17,23 @@ _TICKET = ToolParameter("ticket_id", "Current support ticket identifier.")
 _PARCEL = ToolParameter("parcel_id", "Linked parcel identifier from read_case.")
 _PRODUCT = ToolParameter("product_id", "Product identifier from inspect_parcel.")
 _RECEIPT = ToolParameter("receipt_id", "Receipt identifier from a posted remedy.")
+_APPROVAL = ToolParameter("approval_id", "Authorization returned by approve_refund.")
+_LOOKUP = ToolSpec("find_parcel", "Find the linked parcel when the case lacks its ID.", (_TICKET,))
+_BACKUP = ToolSpec(
+    "query_carrier_backup",
+    "Read carrier facts when the primary carrier lookup is unavailable.",
+    (_PARCEL,),
+)
+_APPROVE = ToolSpec(
+    "approve_refund",
+    "Request an approval ID for a lost parcel without replacement stock.",
+    (_TICKET, _PARCEL),
+)
+_REFUND_WITH_APPROVAL = ToolSpec(
+    "issue_refund",
+    "Refund a lost parcel using a refund authorization.",
+    (_TICKET, _PARCEL, _APPROVAL),
+)
 _READ_TOOLS = (
     ToolSpec("read_case", "Read the customer report and linked parcel.", (_TICKET,)),
     ToolSpec("inspect_parcel", "Read authoritative carrier and product data.", (_PARCEL,)),
@@ -40,7 +57,14 @@ _LOCKER = ToolSpec(
     "locker_replacement", "Reserve a replacement in a local locker.", (_TICKET, _PARCEL, _PRODUCT)
 )
 _CLOSE = ToolSpec("close_case", "Close the case with a posted remedy receipt.", (_TICKET, _RECEIPT))
-RECOVERY_CODES = frozenset({"carrier_retry", "warehouse_retry", "out_of_stock"})
+RECOVERY_CODES = frozenset(
+    {
+        "carrier_retry",
+        "warehouse_retry",
+        "out_of_stock",
+        "carrier_unavailable",
+    }
+)
 _REQUIRED_STATUS = {
     "ship_replacement": "lost",
     "locker_replacement": "lost",
@@ -53,6 +77,8 @@ _GOAL = (
     "parcel, prefer a replacement when available and refund otherwise. Confirm a delivered "
     "parcel or arrange pickup of a held parcel. Close the case using the remedy receipt."
 )
+DELIVERY_V1 = "delivery-exception-v1"
+DELIVERY_V2 = "delivery-exception-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +90,9 @@ class _Profile:
     warehouse_retry: bool = False
     stale_listing: bool = False
     stale_report: bool = False
+    missing_parcel: bool = False
+    backup_carrier: bool = False
+    refund_approval: bool = False
 
 
 # Seed modulo table length selects a profile. Each row defines its own structural support.
@@ -88,42 +117,88 @@ _PROFILES = {
     ),
 }
 
+_EXPANDED = {
+    Split.TRAIN: (
+        _Profile("lost", stock=3),
+        _Profile("lost", refund_approval=True),
+        _Profile("delivered", stale_report=True),
+        _Profile("held", backup_carrier=True),
+        _Profile("lost", stock=2, missing_parcel=True),
+        _Profile("lost", stock=2, locker=True),
+        _Profile("lost", stale_listing=True),
+        _Profile("held", carrier_retry=True),
+    ),
+    Split.VALIDATION: (
+        _Profile("lost", stock=2, carrier_retry=True, missing_parcel=True),
+        _Profile("delivered", missing_parcel=True),
+        _Profile("lost", stock=2, locker=True, backup_carrier=True),
+        _Profile("held", stale_report=True),
+        _Profile("lost", backup_carrier=True, refund_approval=True),
+        _Profile("lost", stock=3, warehouse_retry=True),
+    ),
+    Split.TEST: (
+        _Profile("lost", stock=2, locker=True, missing_parcel=True, warehouse_retry=True),
+        _Profile("lost", stale_listing=True, missing_parcel=True, refund_approval=True),
+        _Profile("delivered", backup_carrier=True, stale_report=True),
+        _Profile("held", missing_parcel=True, backup_carrier=True),
+        _Profile("lost", stale_listing=True, backup_carrier=True, refund_approval=True),
+        _Profile("lost", stock=1, locker=True, carrier_retry=True),
+        _Profile("held", carrier_retry=True, stale_report=True, missing_parcel=True),
+        _Profile("delivered", carrier_retry=True, missing_parcel=True, stale_report=True),
+    ),
+}
 
-def generate_delivery_task(seed: int, split: Split = Split.TRAIN) -> DeliveryTask:
+
+def generate_delivery_task(
+    seed: int, split: Split = Split.TRAIN, *, workflow: str = DELIVERY_V1
+) -> DeliveryTask:
     if seed < 0:
         raise ValueError("seed must be non-negative")
-    ref = _instance_ref(seed, split)
+    if workflow not in (DELIVERY_V1, DELIVERY_V2):
+        raise ValueError("unsupported delivery workflow")
+    ref = _instance_ref(seed, split, workflow)
     ticket_id = f"case-{ref[:20]}"
     return DeliveryTask(
-        f"delivery-{ref}", seed, split, ticket_id, _GOAL.format(ticket_id=ticket_id)
+        f"delivery-{ref}", seed, split, ticket_id, _GOAL.format(ticket_id=ticket_id), workflow
     )
 
 
-def _instance_ref(seed: int, split: Split) -> str:
-    return sha256(f"delivery-exception-v1/{split}/{seed}".encode()).hexdigest()
+def _instance_ref(seed: int, split: Split, workflow: str) -> str:
+    return sha256(f"{workflow}/{split}/{seed}".encode()).hexdigest()
 
 
 class DeliveryEnvironment:
     def __init__(self, task: DeliveryTask) -> None:
-        if task != generate_delivery_task(task.seed, task.split):
+        if task != generate_delivery_task(task.seed, task.split, workflow=task.workflow):
             raise ValueError("task does not match its seed and split")
-        profiles = _PROFILES[task.split]
+        profiles = (_EXPANDED if task.workflow == DELIVERY_V2 else _PROFILES)[task.split]
         self._profile = profiles[task.seed % len(profiles)]
-        ref = _instance_ref(task.seed, task.split)
+        ref = _instance_ref(task.seed, task.split, task.workflow)
+        self._workflow = task.workflow
         self._ticket = task.ticket_id
         self._parcel = f"parcel-{ref[20:36]}"
         self._product = f"product-{ref[36:52]}"
         self._receipt = f"receipt-{ref[52:]}"
+        self._approval = f"approval-{sha256(ref.encode()).hexdigest()[:12]}"
+        self._approved = False
         self._parcel_value = 500 + (task.seed % 37) * 113
-        self._stock = self._profile.stock
+        self._initial_stock = self._profile.stock
+        if task.workflow == DELIVERY_V2 and self._initial_stock:
+            self._initial_stock += int(ref[-2:], 16) % 3
+        self._stock = self._initial_stock
         self._refund = 0
         self._carrier_retry = self._profile.carrier_retry
         self._warehouse_retry = self._profile.warehouse_retry
         self._closed_with: str | None = None
         self._remedy: str | None = None
+        refunds = (_REFUND_WITH_APPROVAL if self._profile.refund_approval else _REMEDIES[0],)
         self.tools = (
             *_READ_TOOLS,
-            *_REMEDIES,
+            *((_LOOKUP,) if self._profile.missing_parcel else ()),
+            *((_BACKUP,) if self._profile.backup_carrier else ()),
+            *((_APPROVE,) if self._profile.refund_approval else ()),
+            *refunds,
+            *_REMEDIES[1:],
             _LOCKER if self._profile.locker else _SHIP,
             _CLOSE,
         )
@@ -151,6 +226,7 @@ class DeliveryEnvironment:
             "parcel_id": self._parcel,
             "product_id": self._product,
             "receipt_id": self._receipt,
+            "approval_id": self._approval,
         }
         mismatches = sorted(
             name for name, value in action.arguments.items() if value != expected[name]
@@ -162,12 +238,20 @@ class DeliveryEnvironment:
         match action.tool:
             case "read_case":
                 reported_status = "lost" if self._profile.stale_report else self._profile.status
+                if self._profile.missing_parcel:
+                    return Observation(
+                        True, "case_needs_lookup", {"reported_status": reported_status}
+                    )
                 return Observation(
                     True,
                     "case_read",
                     {"parcel_id": self._parcel, "reported_status": reported_status},
                 )
-            case "inspect_parcel":
+            case "find_parcel":
+                return Observation(True, "parcel_found", {"parcel_id": self._parcel})
+            case "inspect_parcel" | "query_carrier_backup":
+                if action.tool == "inspect_parcel" and self._profile.backup_carrier:
+                    return Observation(False, "carrier_unavailable")
                 if self._carrier_retry:
                     self._carrier_retry = False
                     return Observation(False, "carrier_retry")
@@ -176,6 +260,11 @@ class DeliveryEnvironment:
                     "parcel_inspected",
                     {"status": self._profile.status, "product_id": self._product},
                 )
+            case "approve_refund":
+                if self._profile.status != "lost" or self._stock != 0 or self._remedy is not None:
+                    return Observation(False, "remedy_ineligible")
+                self._approved = True
+                return Observation(True, "refund_approved", {"approval_id": self._approval})
             case "get_stock":
                 return Observation(
                     True,
@@ -205,6 +294,8 @@ class DeliveryEnvironment:
                 return Observation(False, "out_of_stock")
             self._stock -= 1
         if tool == "issue_refund":
+            if self._profile.refund_approval and not self._approved:
+                return Observation(False, "approval_required")
             self._refund = self._parcel_value
         self._remedy = tool
         return Observation(True, "remedy_posted", {"receipt_id": self._receipt})
@@ -217,11 +308,11 @@ class DeliveryEnvironment:
             case "held":
                 expected = "schedule_pickup"
             case _:
-                if self._profile.stock:
+                if self._initial_stock:
                     expected = "locker_replacement" if self._profile.locker else "ship_replacement"
                 else:
                     expected = "issue_refund"
-        expected_stock = self._profile.stock - int(
+        expected_stock = self._initial_stock - int(
             expected in {"ship_replacement", "locker_replacement"}
         )
         expected_refund = self._parcel_value if expected == "issue_refund" else 0
@@ -235,4 +326,7 @@ class DeliveryEnvironment:
             failures.append("incorrect_inventory")
         if self._refund != expected_refund:
             failures.append("incorrect_refund")
-        return Verification("delivery_exception_state_v1", not failures, tuple(failures))
+        if self._approved != (expected == "issue_refund" and self._profile.refund_approval):
+            failures.append("incorrect_approval")
+        version = "v2" if self._workflow == DELIVERY_V2 else "v1"
+        return Verification(f"delivery_exception_state_{version}", not failures, tuple(failures))
