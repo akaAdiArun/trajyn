@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TRAJYN — The Experience Layer for AI Agents</title>
+  <meta name="description" content="TRAJYN is open-source research infrastructure for turning verified agent executions into portable capability capsules. Explore a recorded run and the cross-model evidence.">
+  $metadata
+  <meta name="theme-color" content="#090d17">
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="masthead container">
+    <a class="brand" href="./" aria-label="TRAJYN home"><img src="assets/mark.svg" width="32" height="32" alt="">TRAJYN</a>
+    <nav aria-label="Website">
+      <a href="#architecture">Architecture</a><a href="#replay">Replay</a><a href="#experiments">Experiments</a>
+      <a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/PROJECT_BRIEF.md">Docs</a><a href="#roadmap">Roadmap</a>
+    </nav>
+    <a class="repo" href="https://github.com/akaAdiArun/trajyn">GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="main">
+    <div class="hero-wrap">
+      <section class="container hero" aria-labelledby="headline">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="dot"></span> Open-source research infrastructure</p>
+          <h1 id="headline">The Experience<br>Layer for <span>AI Agents.</span></h1>
+          <p class="tagline">Experience is portable. Capability is earned.</p>
+          <p class="lead">TRAJYN records what an agent did, verifies what changed, and packages reusable procedures for another agent to try.</p>
+          <div class="actions"><a class="button primary" href="#replay">Explore a recorded run <span aria-hidden="true">↓</span></a><a class="button secondary" href="#experiments">Read the evidence <span aria-hidden="true">↗</span></a></div>
+        </div>
+        <div class="hero-art"><img src="assets/hero.svg" width="640" height="480" alt="An illustration of a source agent's execution path flowing through a capability capsule toward a target agent"></div>
+      </section>
+    </div>
+
+    <section class="container problem" aria-labelledby="problem-heading">
+      <p class="eyebrow">The problem</p>
+      <div class="section-intro"><h2 id="problem-heading">Agents keep solving<br>the same problem.</h2>
+      <p>A transcript records one execution. To use it on a different task, an agent still has to learn which steps apply, where the inputs come from, and what outcome to verify. TRAJYN makes those dependencies explicit in a capability capsule.</p></div>
+    </section>
+
+    <section class="container section" id="architecture" aria-labelledby="architecture-heading">
+      <p class="eyebrow">Architecture</p>
+      <div class="section-intro"><h2 id="architecture-heading">From execution<br>to evidence.</h2>
+        <p>Select a stage to see what information enters and leaves the runtime. The simulator’s private state stays with the independent verifier.</p></div>
+      <div class="architecture-layout">
+        <ol class="pipeline">$stages</ol>
+        <figure class="architecture-image"><img src="assets/architecture.png" width="800" height="866" loading="lazy" alt="TRAJYN runtime components grouped into source execution, recording and verification, induction, target execution, and paired measurement"><figcaption><a href="https://github.com/akaAdiArun/trajyn/blob/main/src/trajyn/runner.py">Read the runtime code ↗</a></figcaption></figure>
+      </div>
+    </section>
+
+    <section class="replay-band" id="replay" aria-labelledby="replay-heading">
+      <div class="container section">
+        <p class="eyebrow">Interactive demonstration</p>
+        <div class="section-intro"><h2 id="replay-heading">Open the trace.</h2><p>This replay follows an archived Qwen3-8B execution. Each tool result came from the benchmark environment. The final stage shows the capsule derived from this verified run.</p></div>
+        <div class="replay-shell" data-replay>
+          <div class="replay-bar"><span><i></i><i></i><i></i></span><strong>DELIVERY EXCEPTION</strong><span class="archive">Archived replay</span></div>
+          <div class="replay-inner">
+            <nav aria-label="Replay steps" class="replay-index">$replay_links</nav>
+            <div class="replay-body">$replay_steps
+              <div class="replay-controls" hidden><button type="button" data-prev>← Previous</button><span aria-live="polite" data-position></span><button type="button" data-next>Next →</button></div>
+            </div>
+          </div>
+        </div>
+        <p class="links"><a href="evidence/source.jsonl">Download source JSONL ↗</a><a href="evidence/capsule.json">Download capsule ↗</a></p>
+      </div>
+    </section>
+
+    <section class="container section" id="experiments" aria-labelledby="experiments-heading">
+      <p class="eyebrow">Research</p>
+      <div class="section-intro"><h2 id="experiments-heading">Does experience transfer?</h2><p>Every condition runs on the same held-out tasks. Completion comes from verified environment state. We publish the failures alongside the successes.</p></div>
+      $experiments
+    </section>
+
+    <section class="container section roadmap" id="roadmap" aria-labelledby="roadmap-heading">
+      <p class="eyebrow">Roadmap</p>
+      <div class="section-intro"><h2 id="roadmap-heading">Infrastructure<br>in the making.</h2><p>TRAJYN is an experimental Python runtime and evaluation framework. The roadmap tracks what has shipped and what remains research.</p></div>
+      <div class="roadmap-grid">
+        <div><h3>Available</h3><p>Seeded stateful workflows, evidence-grounded induction, public tool compatibility checks, and paired evaluation.</p></div>
+        <div><h3>Under study</h3><p>Branch-aware applicability, when to abstain, and how to measure negative transfer across model families.</p></div>
+        <div><h3>Planned</h3><p>Versioned capability registries with revocation, SDK integrations, and distributed exchange.</p></div>
+      </div>
+      <p class="links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/ROADMAP.md">Read the roadmap ↗</a><a href="https://github.com/akaAdiArun/trajyn/blob/main/AGENTS.md">Contributing ↗</a></p>
+    </section>
+  </main>
+  <footer class="container footer">
+    <a class="brand" href="./"><img src="assets/mark.svg" width="28" height="28" alt="">TRAJYN</a>
+    <p>Open-source AI infrastructure research.</p>
+    <a href="https://github.com/akaAdiArun/trajyn/blob/main/LICENSE">Apache-2.0 ↗</a>
+  </footer>
+</body>
+</html>
