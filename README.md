@@ -14,6 +14,8 @@
 </p>
 
 <p align="center">
+  <a href="https://akaadiarun.github.io/trajyn/"><strong>Website</strong></a> ·
+  <a href="https://akaadiarun.github.io/trajyn/#replay">Interactive replay</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#experiments-and-results">Experiments</a> ·
   <a href="docs/PROJECT_BRIEF.md">Documentation</a> ·
