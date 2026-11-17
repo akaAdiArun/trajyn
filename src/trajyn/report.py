@@ -26,7 +26,9 @@ class PairedOutcome:
 
 def paired_outcomes(evaluation: Evaluation) -> tuple[PairedOutcome, ...]:
     samples = {(row.seed, row.condition): row for row in evaluation.trials}
-    expected = {(seed, condition) for seed in evaluation.plan.seeds for condition in Condition}
+    expected = {
+        (seed, condition) for seed in evaluation.plan.seeds for condition in evaluation.conditions
+    }
     if samples.keys() != expected or len(samples) != len(evaluation.trials):
         raise ValueError("evaluation must contain one trial per seed and condition")
     agent = evaluation.trials[0].agent
@@ -86,10 +88,11 @@ def render_report(result: Evaluation) -> str:
         Condition.SUMMARY: "C · Procedural summary",
         Condition.CAPSULE: "D · Capsule",
         Condition.CONTROL: "E · Irrelevant trajectory",
+        Condition.DYNAMIC: "F · Branch-aware capsule",
     }
     per_condition = {
         condition: tuple(row for row in result.trials if row.condition == condition)
-        for condition in Condition
+        for condition in result.conditions
     }
     for condition, rows in per_condition.items():
         durations = [row.elapsed_ns / 1_000_000 for row in rows if row.elapsed_ns is not None]

@@ -24,6 +24,12 @@ class Agent(Protocol):
         """Return one public tool decision or stop the attempt."""
 
 
+class MemoryPolicy(Protocol):
+    def memory_for(self, context: AgentContext) -> Memory | None: ...
+
+    def finish(self, context: AgentContext) -> None: ...
+
+
 class OfflineReferenceAgent:
     """Rules-based baseline for the replacement workflow."""
 

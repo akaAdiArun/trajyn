@@ -7,8 +7,9 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
-from trajyn.agent import Agent, OfflineReferenceAgent
+from trajyn.agent import Agent, AgentContext, OfflineReferenceAgent
 from trajyn.benchmark import DELIVERY_V1, DELIVERY_V2, RECOVERY_CODES, generate_delivery_task
+from trajyn.branching import BranchState, BranchTransfer, Transition
 from trajyn.capability import CapabilityCapsule
 from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.environment import generate_task
@@ -34,6 +35,10 @@ class Condition(StrEnum):
     SUMMARY = "C"
     CAPSULE = "D"
     CONTROL = "E"
+    DYNAMIC = "F"
+
+
+BASE_CONDITIONS = tuple(condition for condition in Condition if condition != Condition.DYNAMIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +102,24 @@ class Evaluation:
     control_source: SourceRecord
     trials: tuple[Trial, ...]
     schema_version: int = 1
+
+    @property
+    def conditions(self) -> tuple[Condition, ...]:
+        return (
+            tuple(Condition)
+            if any(row.condition == Condition.DYNAMIC for row in self.trials)
+            else BASE_CONDITIONS
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TransferAudit:
+    seed: int
+    condition: Condition
+    capsule_id: str
+    transitions: tuple[Transition, ...]
+    delivered_after_steps: tuple[int, ...]
+    continued_after_divergence: int
 
 
 def validate_seeds(seeds: tuple[int, ...]) -> None:
@@ -220,9 +243,10 @@ def _memory(
             return as_raw_memory(source), source.trajectory_id, None
         case Condition.SUMMARY:
             return summarize(source), source.trajectory_id, None
-        case Condition.CAPSULE:
+        case Condition.CAPSULE | Condition.DYNAMIC:
             selection = select_capsule(public_task(task), environment_for(task).tools, (capsule,))
-            return selection.memory, source.trajectory_id, selection.considered[0]
+            memory = selection.memory if condition == Condition.CAPSULE else None
+            return memory, source.trajectory_id, selection.considered[0]
         case Condition.CONTROL:
             return as_raw_memory(control), control.trajectory_id, None
         case Condition.NO_MEMORY:
@@ -291,6 +315,7 @@ def evaluate(
     *,
     plan: EvaluationPlan = EvaluationPlan(),
     target_factory: Callable[[], Agent] = DeliveryTargetAgent,
+    branch_aware: bool = False,
 ) -> Evaluation:
     capsule_by_source = _validate_sources(sources, capsules)
     if set(plan.seeds) & {source.task.seed for source in sources}:
@@ -302,7 +327,8 @@ def evaluate(
 
     trials: list[Trial] = []
     retrieval = []
-    conditions = tuple(Condition)
+    conditions = tuple(Condition) if branch_aware else BASE_CONDITIONS
+    audits: list[TransferAudit] = []
     for index, seed in enumerate(plan.seeds):
         task = generate_delivery_task(
             seed, plan.split, workflow=public_task(sources[0].task).workflow
@@ -328,13 +354,24 @@ def evaluate(
         for condition in order:
             memory, source_id, transfer = _memory(condition, task, source, capsule, control)
             agent = target_factory()
+            policy = (
+                BranchTransfer(public_task(task), environment_for(task).tools, (capsule,))
+                if branch_aware and condition in (Condition.CAPSULE, Condition.DYNAMIC)
+                else None
+            )
             trajectory = run_task(
                 task,
                 agent,
                 max_steps=plan.max_steps,
                 measure_time=plan.measure_time,
                 memory=memory,
+                memory_policy=policy if condition == Condition.DYNAMIC else None,
             )
+            delivered = memory is not None
+            if policy is not None:
+                audits.append(_transfer_audit(condition, capsule, trajectory, policy, delivered))
+                if condition == Condition.DYNAMIC:
+                    delivered = bool(policy.prompt_steps)
             if trials and trajectory.agent != trials[0].agent:
                 raise ValueError("all conditions must use the same target agent identity")
             relative_path = f"trajectories/{seed}-{condition.value}.jsonl"
@@ -346,12 +383,58 @@ def evaluate(
                     condition=condition,
                     relative_path=relative_path,
                     source_id=source_id,
-                    memory_delivered=memory is not None,
+                    memory_delivered=delivered,
                     memory_used=used,
                     transfer=transfer,
                 )
             )
     write_jsonl(output / "retrieval.json", [{"policy_version": 1, "targets": retrieval}])
+    if branch_aware:
+        write_jsonl(output / "transfer.json", [{"schema_version": 1, "trials": audits}])
     return Evaluation(
         plan, tuple(map(_source_record, sources)), _source_record(control), tuple(trials)
+    )
+
+
+def _transfer_audit(
+    condition: Condition,
+    capsule: CapabilityCapsule,
+    trajectory: Trajectory,
+    policy: BranchTransfer,
+    static_delivered: bool,
+) -> TransferAudit:
+    steps = trajectory.steps
+    if condition == Condition.CAPSULE:
+        task = public_task(trajectory.task)
+        tools = environment_for(trajectory.task).tools
+        for count in range(len(steps)):
+            policy.memory_for(AgentContext(task, tools, steps[:count], trajectory.max_steps))
+        policy.finish(AgentContext(task, tools, steps, trajectory.max_steps))
+        prompts = tuple(range(len(steps))) if static_delivered else ()
+    else:
+        prompts = tuple(step for step in policy.prompt_steps if step < len(steps))
+    divergence = next(
+        (
+            item.after_step
+            for item in policy.transitions
+            if item.state == BranchState.DIVERGED
+            or (
+                item.state == BranchState.ABSTAINED
+                and item.reason
+                in (
+                    "public_operation_diverged",
+                    "public_observation_diverged",
+                    "missing_public_prerequisite",
+                )
+            )
+        ),
+        len(steps),
+    )
+    return TransferAudit(
+        trajectory.task.seed,
+        condition,
+        capsule.capability_id,
+        tuple(policy.transitions),
+        prompts,
+        sum(step >= divergence for step in prompts),
     )

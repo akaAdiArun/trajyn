@@ -113,6 +113,7 @@ def run_pilot(
     workflow: str = DELIVERY_V1,
     expected_source_digest: str | None = None,
     expected_target_digest: str | None = None,
+    branch_aware: bool = False,
 ) -> dict[str, object]:
     validate_seeds(source_seeds)
     plan = EvaluationPlan(target_seeds, Split.TEST, max_steps)
@@ -144,7 +145,9 @@ def run_pilot(
         "plan": plan,
         "options": connection.options,
         "workflow": workflow,
-        "maximum_model_calls": (len(source_seeds) + 5 * len(target_seeds)) * max_steps,
+        "branch_aware": branch_aware,
+        "maximum_model_calls": (len(source_seeds) + (6 if branch_aware else 5) * len(target_seeds))
+        * max_steps,
     }
     sources = collect_sources(
         output / "source",
@@ -191,6 +194,7 @@ def run_pilot(
         output / "evaluation",
         plan=plan,
         target_factory=lambda: track(target_model, target_agents),
+        branch_aware=branch_aware,
     )
     write_evaluation(output / "evaluation", result)
     metadata["target_inference"] = [

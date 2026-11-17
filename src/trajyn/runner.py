@@ -3,7 +3,7 @@
 from dataclasses import replace
 from time import perf_counter_ns
 
-from trajyn.agent import Agent, AgentContext
+from trajyn.agent import Agent, AgentContext, MemoryPolicy
 from trajyn.benchmark import DeliveryEnvironment
 from trajyn.environment import ReplacementEnvironment
 from trajyn.memory import Memory
@@ -24,9 +24,12 @@ def run_task(
     max_steps: int = 8,
     measure_time: bool = False,
     memory: Memory | None = None,
+    memory_policy: MemoryPolicy | None = None,
 ) -> Trajectory:
     if max_steps < 1:
         raise ValueError("max_steps must be positive")
+    if memory is not None and memory_policy is not None:
+        raise ValueError("choose static memory or a per-attempt memory policy")
 
     environment = environment_for(task)
     public = public_task(task)
@@ -36,9 +39,10 @@ def run_task(
     started_ns = perf_counter_ns() if measure_time else None
     for index in range(1, max_steps + 1):
         step_started_ns = perf_counter_ns() if measure_time else None
-        decision = agent.decide(
-            AgentContext(public, environment.tools, tuple(steps), max_steps, memory)
-        )
+        context = AgentContext(public, environment.tools, tuple(steps), max_steps, memory)
+        if memory_policy is not None:
+            context = replace(context, memory=memory_policy.memory_for(context))
+        decision = agent.decide(context)
         if decision is None:
             stop_reason = StopReason.AGENT_STOPPED
             break
@@ -53,6 +57,8 @@ def run_task(
             )
         )
 
+    if memory_policy is not None:
+        memory_policy.finish(AgentContext(public, environment.tools, tuple(steps), max_steps))
     verification = environment.verify()
     trajectory = Trajectory(
         trajectory_id="",
