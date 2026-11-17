@@ -17,6 +17,7 @@ from trajyn.memory import Memory
 from trajyn.models import AgentIdentity, Split, Task, Trajectory, Usage, public_task
 from trajyn.provenance import read_trajectory, replay_trajectory
 from trajyn.recording import encode_json, write_jsonl, write_trajectory
+from trajyn.retrieval import rank_experience
 from trajyn.runner import environment_for, run_task
 from trajyn.target import DeliveryTargetAgent, as_raw_memory, summarize
 from trajyn.transfer import TransferConsideration, select_capsule
@@ -292,19 +293,34 @@ def evaluate(
     if set(plan.seeds) & {source.task.seed for source in sources}:
         raise ValueError("target seeds must be disjoint from training seeds")
 
-    # The delivery cases share a public goal. Order equal-task retrieval by seed.
-    source = min(
-        (item for item in sources if item.verification.passed),
-        key=lambda item: item.task.seed,
-    )
-    capsule = capsule_by_source[source.trajectory_id]
+    by_id = {source.trajectory_id: source for source in sources}
     control = run_task(generate_task(42), OfflineReferenceAgent())
     write_trajectory(output / "negative-control.jsonl", control)
 
     trials: list[Trial] = []
-    for seed in plan.seeds:
+    retrieval = []
+    conditions = tuple(Condition)
+    for index, seed in enumerate(plan.seeds):
         task = generate_delivery_task(seed, plan.split)
-        for condition in Condition:
+        ranking = rank_experience(
+            public_task(task), environment_for(task).tools, sources, capsule_by_source
+        )
+        if not ranking:
+            raise ValueError("no verified source matches the public target workflow")
+        source = by_id[ranking[0].source_id]
+        capsule = capsule_by_source[source.trajectory_id]
+        offset = index % len(conditions)
+        order = conditions[offset:] + conditions[:offset]
+        retrieval.append(
+            {
+                "task_id": task.task_id,
+                "seed": seed,
+                "selected_source_id": source.trajectory_id,
+                "order": order,
+                "candidates": ranking,
+            }
+        )
+        for condition in order:
             memory, source_id, transfer = _memory(condition, task, source, capsule, control)
             agent = target_factory()
             trajectory = run_task(
@@ -330,6 +346,7 @@ def evaluate(
                     transfer=transfer,
                 )
             )
+    write_jsonl(output / "retrieval.json", [{"policy_version": 1, "targets": retrieval}])
     return Evaluation(
         plan, tuple(map(_source_record, sources)), _source_record(control), tuple(trials)
     )
