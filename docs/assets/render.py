@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs/assets"
 PILOT = ROOT / "examples/local-pilot/action-first"
+STUDY_RESULTS = ROOT / "examples/experiment-001/run/evaluation/results.json"
 INK = "#070c1b"
 PANEL = "#111d36"
 RULE = "#293b61"
@@ -108,7 +109,7 @@ STAGES = [
     ("Induction", "Extracts guarded steps", VIOLET),
     ("Capsule", "Packs steps and evidence", VIOLET),
     ("Compatibility", "Checks target interfaces", VIOLET),
-    ("Agent B", "Uses compatible memory", CYAN),
+    ("Agent B", "Receives memory", CYAN),
     ("Evaluation", "Compares outcomes", CYAN),
 ]
 
@@ -168,7 +169,7 @@ def architecture():
             CYAN,
         ),
         (
-            "VERIFY & INDUCE",
+            "RECORD & VERIFY",
             "Trajectory recorder",
             "Observable action / result pairs",
             "Independent verifier",
@@ -287,7 +288,7 @@ def results(path: Path):
         failures[row["condition"]] += row["invalid_calls"]
     image, draw = canvas(800, 587)
     title(draw, "Held-out outcomes", f"Recorded model trials  /  {records[0]['agent']['model']}")
-    text(draw, 486, 144, "VERIFIED", 18, CYAN, "mono")
+    text(draw, 468, 144, "VERIFIED", 18, CYAN, "mono")
     text(draw, 609, 144, "INVALID CALLS", 18, VIOLET, "mono")
     for idx, label in enumerate(
         ("No memory", "Raw trajectory", "Procedural summary", "Capsule", "Irrelevant memory")
@@ -297,7 +298,11 @@ def results(path: Path):
         draw.rounded_rectangle((32, y, 768, y + 59), 11, fill=PANEL)
         text(draw, 52, y + 17, letter, 23, CYAN, "mono")
         text(draw, 100, y + 16, label, 25, style="bold")
-        text(draw, 528, y + 16, f"{passed[letter]}/{totals[letter]}", 26, WHITE, "mono", "mt")
+        draw.rounded_rectangle((376, y + 26, 469, y + 33), 3, fill=RULE)
+        fill = round(93 * passed[letter] / totals[letter])
+        if fill:
+            draw.rounded_rectangle((376, y + 26, 376 + fill, y + 33), 3, fill=CYAN)
+        text(draw, 530, y + 16, f"{passed[letter]}/{totals[letter]}", 25, WHITE, "mono", "mt")
         text(draw, 685, y + 16, str(failures[letter]), 26, VIOLET, "mono", "mt")
     text(draw, 35, 542, "Verified completion is measured from environment state.", 22, MUTED)
     image.save(OUT / "outcomes.png", optimize=True)
@@ -325,7 +330,7 @@ def badges():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", type=Path, default=PILOT / "evaluation/results.json")
+    parser.add_argument("--results", type=Path, default=STUDY_RESULTS)
     args = parser.parse_args()
     OUT.mkdir(exist_ok=True)
     hero()
