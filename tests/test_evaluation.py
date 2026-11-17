@@ -22,6 +22,7 @@ from trajyn.provenance import read_trajectory
 from trajyn.report import paired_outcomes, read_evaluation
 from trajyn.retrieval import rank_experience
 from trajyn.runner import environment_for
+from trajyn.study import write_study_analysis
 from trajyn.transfer import TransferStatus
 
 CREATED = datetime(2026, 1, 1, tzinfo=UTC)
@@ -118,6 +119,11 @@ def test_paired_cli_pipeline_exports_replayable_data_and_comparison(tmp_path: Pa
     assert main(["compare", "--results", str(result_file), "--output", str(compare)]) == 0
     assert compare.read_bytes() == (output / "comparison.md").read_bytes()
     assert len(read_capsules(capsules)) == 5
+    measured = {item.condition: item for item in write_study_analysis(result_file, output)}
+    assert measured[Condition.SUMMARY].regressed == 1
+    assert measured[Condition.SUMMARY].paired_delta == -0.25
+    assert measured[Condition.CAPSULE].accepted == 4
+    assert measured[Condition.NO_MEMORY].success_interval[1] == 1
 
 
 def test_paired_outcomes_measure_an_observed_regression_at_tighter_budget(tmp_path: Path) -> None:
