@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from trajyn.benchmark import generate_delivery_task
+from trajyn.benchmark import DeliveryEnvironment, generate_delivery_task
 from trajyn.environment import generate_task
 from trajyn.models import (
     AgentIdentity,
@@ -31,9 +31,12 @@ def replay_trajectory(trajectory: Trajectory) -> None:
         raise ValueError("step count disagrees with budget or stop reason")
     env = environment_for(trajectory.task)
     for index, step in enumerate(steps, 1):
-        if step.index != index or encode_json(env.execute(step.action)) != encode_json(
-            step.observation
-        ):
+        observed = (
+            env.replay(step.action, step.observation.code)
+            if isinstance(env, DeliveryEnvironment)
+            else env.execute(step.action)
+        )
+        if step.index != index or encode_json(observed) != encode_json(step.observation):
             raise ValueError(f"recorded observation cannot be reproduced at step {index}")
     if env.verify() != trajectory.verification:
         raise ValueError("recorded verification cannot be reproduced")

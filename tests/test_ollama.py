@@ -38,7 +38,7 @@ class FixtureConnection(OllamaConnection):
                 }
             )
         content = (
-            encode_json({"tool": "read_case", "arguments": {"ticket_id": self.tool_ticket}})
+            encode_json({"action": "read_case", "arguments": {"ticket_id": self.tool_ticket}})
             if "format" in payload and self.tool_ticket
             else "excluded"
         )
@@ -77,7 +77,7 @@ def test_schema_mode_executes_a_model_selected_action() -> None:
     assert decision.action == ToolAction("read_case", {"ticket_id": task.ticket_id})
     request = connection.requests[0]
     assert "tools" not in request
-    assert '"enum":["read_case"]' in encode_json(request["format"])
+    assert '"enum":["read_case","inspect_parcel"' in encode_json(request["format"])
     assert "Public tool history" in encode_json(request["messages"])
 
 

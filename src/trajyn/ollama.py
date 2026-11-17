@@ -10,7 +10,7 @@ from trajyn.agent import AgentContext
 from trajyn.models import AgentDecision, AgentIdentity, Scalar, ToolAction, ToolSpec, Usage
 from trajyn.recording import encode_json
 
-PROMPT_REVISION = 2
+PROMPT_REVISION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +149,7 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
             "if a tool or expected observation differs.\n" + encode_json(context.memory)
         )
     if structured:
-        system += " Return a JSON object with tool and arguments fields."
+        system += " Return a JSON object with action and arguments fields."
         task += "\nAvailable tools:\n" + encode_json(context.tools)
         task += "\nPublic tool history in order:\n" + encode_json(
             [{"action": step.action, "observation": step.observation} for step in context.steps]
@@ -189,18 +189,13 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
 
 def _response_schema(tools: tuple[ToolSpec, ...]) -> dict[str, object]:
     return {
-        "anyOf": [
-            {
-                "type": "object",
-                "properties": {
-                    "tool": {"type": "string", "enum": [tool.name]},
-                    "arguments": _arguments(tool),
-                },
-                "required": ["tool", "arguments"],
-                "additionalProperties": False,
-            }
-            for tool in tools
-        ]
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": [tool.name for tool in tools]},
+            "arguments": {"type": "object", "additionalProperties": {"type": "string"}},
+        },
+        "required": ["action", "arguments"],
+        "additionalProperties": False,
     }
 
 
@@ -260,7 +255,7 @@ class OllamaAgent:
                     function = _object(json.loads(content))
                 except json.JSONDecodeError as error:
                     raise OllamaError("model_returned_invalid_action_json") from error
-                name = function.get("tool")
+                name = function.get("action")
             else:
                 calls = message.get("tool_calls", [])
                 if not isinstance(calls, list):

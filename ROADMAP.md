@@ -17,6 +17,8 @@ The paired evaluation runs no-memory, raw-trajectory, summary, capsule, and
 irrelevant-memory conditions and exports JSON, CSV, and Markdown.
 An opt-in Ollama adapter can use two distinct local model families with call
 and inference limits and a separate experiment directory.
+The [local pilot](docs/LOCAL_PILOT.md) completed source induction and all
+paired target trials. Target completion was zero under each condition.
 
 ## Beyond Milestone 2
 
