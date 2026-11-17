@@ -39,3 +39,26 @@ When different procedures still match the same public prefix, the gate waits
 for distinguishing evidence. Identical procedures can corroborate a matching
 branch without changing its actions. Experiment 002 uses one candidate per
 attempt in both D and F to isolate the effect of timing and withdrawal.
+
+## Offline counterfactual
+
+Collect source seed 0 for delivery v1, induce with
+`--created-at 2026-01-01T00:00:00+00:00`, and evaluate with
+`--branch-aware --no-timing --seeds 200,201,202,203`. Analyze the resulting
+`results.json` with `trajyn analyze`.
+
+| Arm | Independently verified | Actions | Invalid actions |
+| --- | ---: | ---: | ---: |
+| A · No memory | 4/4 | 20 | 0 |
+| B · Raw trajectory | 4/4 | 20 | 0 |
+| C · Procedural summary | 4/4 | 22 | 1 |
+| D · Static capsule | 4/4 | 20 | 0 |
+| E · Irrelevant memory | 4/4 | 20 | 0 |
+| F · Branch-aware capsule | 4/4 | 20 | 0 |
+
+F rejected an unsupported tool on seed 200, activated then withdrew on stale
+stock in 201, and abstained when the live carrier response differed on 202 and
+203. D continued delivering memory on seven tool-producing turns past those
+divergences. F delivered none past divergence and the fixture still recovered
+from the stale listing and carrier retry. This exercises the runtime with
+deterministic policies. Experiment 002 separately measures model behavior.

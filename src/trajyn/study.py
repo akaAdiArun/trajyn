@@ -1,5 +1,6 @@
 """Summarize paired outcomes and identifier diagnostics from replayed artifacts."""
 
+import json
 from collections import Counter
 from dataclasses import dataclass
 from math import comb, sqrt
@@ -7,8 +8,9 @@ from pathlib import Path
 from random import Random
 from statistics import mean
 
+from trajyn.branching import BranchState
 from trajyn.diagnostics import ToolDiagnostics, diagnose
-from trajyn.evaluation import Condition
+from trajyn.evaluation import Condition, Evaluation
 from trajyn.provenance import read_trajectory
 from trajyn.recording import write_jsonl, write_text
 from trajyn.report import paired_outcomes, read_evaluation
@@ -126,9 +128,80 @@ def summarize_study(path: Path) -> tuple[ConditionSummary, ...]:
     return tuple(summaries)
 
 
+@dataclass(frozen=True, slots=True)
+class BranchSummary:
+    paired_success: dict[int, int]
+    improved: int
+    regressed: int
+    paired_delta: float
+    paired_interval: tuple[float, float]
+    paired_sign_p: float
+    active: int
+    abstained: int
+    withdrawn: int
+    terminal_states: dict[str, int]
+    continued_after_divergence: dict[str, int]
+
+
+def _branch_summary(results: Path, evaluation: Evaluation) -> BranchSummary:
+    artifact = json.loads((results.parent / "transfer.json").read_text(encoding="utf-8"))
+    if artifact["schema_version"] != 1:
+        raise ValueError("unsupported transfer audit schema")
+    audits = {(row["seed"], row["condition"]): row for row in artifact["trials"]}
+    arms = (Condition.CAPSULE, Condition.DYNAMIC)
+    rows = {(row.seed, row.condition): row for row in evaluation.trials if row.condition in arms}
+    if len(audits) != len(artifact["trials"]) or audits.keys() != rows.keys():
+        raise ValueError("transfer audit does not match the D/F trial matrix")
+    for key, audit in audits.items():
+        trial = rows[key]
+        prompts = audit["delivered_after_steps"]
+        if (
+            trial.transfer is None
+            or audit["capsule_id"] != trial.transfer.capsule_id
+            or prompts != sorted(set(prompts))
+            or any(not 0 <= step < trial.action_count for step in prompts)
+            or not 0 <= audit["continued_after_divergence"] <= len(prompts)
+        ):
+            raise ValueError("transfer audit disagrees with trial")
+
+    paired = {
+        seed: int(rows[seed, Condition.DYNAMIC].passed) - int(rows[seed, Condition.CAPSULE].passed)
+        for seed in evaluation.plan.seeds
+    }
+    values = list(paired.values())
+    improved, regressed = values.count(1), values.count(-1)
+    lifecycle = [
+        [BranchState(item["state"]) for item in audit["transitions"]]
+        for (_, condition), audit in audits.items()
+        if condition == Condition.DYNAMIC
+    ]
+    if any(not states for states in lifecycle):
+        raise ValueError("missing branch lifecycle")
+    return BranchSummary(
+        paired,
+        improved,
+        regressed,
+        mean(values),
+        _paired_interval(values),
+        _paired_sign(improved, regressed),
+        sum(BranchState.ACTIVE in states for states in lifecycle),
+        sum(BranchState.ABSTAINED in states for states in lifecycle),
+        sum(BranchState.WITHDRAWN in states for states in lifecycle),
+        dict(Counter(states[-1].value for states in lifecycle)),
+        {
+            arm.value: sum(
+                audit["continued_after_divergence"]
+                for (_, condition), audit in audits.items()
+                if condition == arm
+            )
+            for arm in arms
+        },
+    )
+
+
 def write_study_analysis(results: Path, output: Path) -> tuple[ConditionSummary, ...]:
     summaries = summarize_study(results)
-    write_jsonl(output / "analysis.json", [{"version": 1, "conditions": summaries}])
+    document: dict[str, object] = {"version": 1, "conditions": summaries}
     lines = [
         "# Paired analysis",
         "",
@@ -166,5 +239,27 @@ def write_study_analysis(results: Path, output: Path) -> tuple[ConditionSummary,
         + (", ".join(f"`{name}` ({count})" for name, count in item.failures.items()) or "none")
         for item in summaries
     )
+    if any(summary.condition == Condition.DYNAMIC for summary in summaries):
+        branch = _branch_summary(results, read_evaluation(results))
+        document["branch_transfer"] = branch
+        low, high = branch.paired_interval
+        continued = branch.continued_after_divergence
+        lines += [
+            "",
+            "## Branch-aware vs static capsule",
+            "",
+            f"F vs D yielded {branch.improved} gains and {branch.regressed} regressions "
+            f"({branch.paired_delta:+.0%}, 95% interval {low:+.0%} to {high:+.0%}, "
+            f"paired sign p = {branch.paired_sign_p:.3f}).",
+            f"Across {len(branch.paired_success)} F attempts, {branch.active} activated, "
+            f"{branch.abstained} abstained, and {branch.withdrawn} withdrew.",
+            f"Capsules remained in {continued['D']} D tool-producing prompts after the "
+            f"shadow gate flagged divergence and {continued['F']} F prompts after divergence.",
+            "",
+            "| Seed | Verified outcome F minus D |",
+            "| ---: | ---: |",
+        ]
+        lines.extend(f"| {seed} | {delta:+d} |" for seed, delta in branch.paired_success.items())
+    write_jsonl(output / "analysis.json", [document])
     write_text(output / "analysis.md", "\n".join(lines) + "\n")
     return summaries

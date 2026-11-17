@@ -95,3 +95,63 @@ jobs:
               source = sources[capsule.evidence[0].trajectory_id]
               assert capsule == induce(source, created_at=capsule.created_at)
           PY
+      - name: Replay and compare Experiment 002 offline
+        run: |
+          base=examples/experiment-002/run
+          for mode in grounded unaided secondary-grounded secondary-unaided; do
+            root="$base/$mode"
+            trajyn analyze --results "$root/evaluation/results.json" --output "runs/experiment-002/$mode"
+            cmp "$root/evaluation/analysis.json" "runs/experiment-002/$mode/analysis.json"
+            cmp "$root/evaluation/analysis.md" "runs/experiment-002/$mode/analysis.md"
+            cmp "$base/grounded/source/manifest.json" "$root/source/manifest.json"
+            cmp "$base/grounded/capsules.jsonl" "$root/capsules.jsonl"
+            cmp "$base/grounded/evaluation/retrieval.json" "$root/evaluation/retrieval.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from trajyn.agent import AgentContext
+          from trajyn.branching import BranchTransfer
+          from trajyn.capability import read_capsules
+          from trajyn.evaluation import Condition, _transfer_audit, read_sources
+          from trajyn.induction import induce
+          from trajyn.models import StopReason, public_task
+          from trajyn.provenance import read_trajectory
+          from trajyn.recording import encode_json
+          from trajyn.report import read_evaluation
+          from trajyn.runner import environment_for
+
+          root = Path("examples/experiment-002")
+          for artifact in (root / "calibration").glob("*/calibration.json"):
+              for attempt in json.loads(artifact.read_text())["attempts"]:
+                  trace = read_trajectory(artifact.parent / attempt["trajectory"])
+                  assert trace.trajectory_id == attempt["trajectory_id"]
+                  assert trace.verification.passed == attempt["verified"]
+          for run in (root / "run").iterdir():
+              sources = {source.trajectory_id: source for source in read_sources(run / "source")}
+              capsules = {c.capability_id: c for c in read_capsules(run / "capsules.jsonl")}
+              for capsule in capsules.values():
+                  assert capsule == induce(
+                      sources[capsule.evidence[0].trajectory_id], created_at=capsule.created_at
+                  )
+              directory = run / "evaluation"
+              audit = json.loads((directory / "transfer.json").read_text())
+              reproduced = []
+              for row in read_evaluation(directory / "results.json").trials:
+                  if row.condition not in (Condition.CAPSULE, Condition.DYNAMIC):
+                      continue
+                  trace = read_trajectory(directory / row.trajectory_file)
+                  task, tools = public_task(trace.task), environment_for(trace.task).tools
+                  assert row.transfer is not None
+                  capsule = capsules[row.transfer.capsule_id]
+                  policy = BranchTransfer(task, tools, (capsule,))
+                  if row.condition == Condition.DYNAMIC:
+                      calls = len(trace.steps) + (trace.stop_reason == StopReason.AGENT_STOPPED)
+                      for step in range(calls):
+                          policy.memory_for(AgentContext(task, tools, trace.steps[:step], trace.max_steps))
+                      policy.finish(AgentContext(task, tools, trace.steps, trace.max_steps))
+                  reproduced.append(
+                      _transfer_audit(row.condition, capsule, trace, policy, row.memory_delivered)
+                  )
+              assert encode_json(reproduced) == encode_json(audit["trials"])
+          PY

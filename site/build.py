@@ -154,6 +154,16 @@ def render_experiment(path: Path, heading: str, doc: str, protocol: str) -> str:
             " The static capsule arm regressed on three paired tasks and improved on none. "
             "All ten capsules passed interface checks."
         )
+    else:
+        analysis = json.loads((path / "evaluation/analysis.json").read_text(encoding="utf-8"))
+        branch = analysis["branch_transfer"]
+        continued = branch["continued_after_divergence"]
+        details += (
+            f" Branch-aware transfer had {branch['improved']} paired gains "
+            f"and {branch['regressed']} paired regressions versus static transfer. "
+            f"After divergence, static transfer delivered {continued['D']} capsule prompts "
+            f"and branch-aware transfer delivered {continued['F']}."
+        )
     raw = path.relative_to(ROOT).as_posix() + "/evaluation/results.json"
     return (
         f'<article class="experiment"><h3>{escape(heading)}</h3><p>{details}</p>'
@@ -231,7 +241,12 @@ def build(output: Path, base_url: str = CANONICAL, verification: str = "") -> No
         "EXPERIMENT_001.md",
     )
     trial_archive = ROOT / "examples/experiment-002/run"
-    for mode, heading in (("grounded", "Public-grounded"), ("unaided", "Unaided")):
+    for mode, heading in (
+        ("grounded", "Granite, public grounding"),
+        ("unaided", "Granite, unaided"),
+        ("secondary-grounded", "Ministral, public grounding"),
+        ("secondary-unaided", "Ministral, unaided"),
+    ):
         run = trial_archive / mode
         if (run / "evaluation/results.json").is_file():
             experiments += render_experiment(

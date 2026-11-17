@@ -120,15 +120,24 @@ The paired 95% interval ranged from **−60 to 0 percentage points**.
 
 [Protocol](docs/EXPERIMENT_001.md) · [Experiment 001 results](docs/EXPERIMENT_001_RESULTS.md) · [Calibration](docs/CALIBRATION.md)
 
+Experiment 002 completed **144 held-out trials** across Granite 4 3B and
+Ministral 3 3B with grounded and unaided tool arguments. The branch-aware
+arm abstained in all **24** of its trials and verified the same seeds as
+no memory in every run. It had **9 paired gains and 1 loss** against static
+capsule transfer across the four runs. The same six profiles recur in each
+run. [Protocol](docs/EXPERIMENT_002.md) · [Experiment 002 results](docs/EXPERIMENT_002_RESULTS.md) ·
+[Site charts](https://akaadiarun.github.io/trajyn/#experiments)
+
 The earlier offline fixture run verified **8/8** in every arm. The earlier
 Llama 3.2 pilot verified **0/2** in each arm. Both records remain available.
 [Offline comparison](examples/offline/comparison.md) · [Earlier local pilot](docs/LOCAL_PILOT.md)
 
 ## Roadmap
 
-The [roadmap](ROADMAP.md) tracks branch-aware retrieval, preregistered
-replication, and future registry and SDK work. The [charter](docs/PROJECT_BRIEF.md)
-defines the research questions and experimental controls.
+The [roadmap](ROADMAP.md) tracks work to measure activation with multiple
+verified alternatives, alongside future registry and SDK work. The
+[charter](docs/PROJECT_BRIEF.md) defines the research questions and
+experimental controls.
 
 ## Contributing and license
 
