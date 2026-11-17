@@ -3,8 +3,9 @@
 import json
 import os
 from collections.abc import Iterable, Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -46,7 +47,12 @@ def write_jsonl(path: Path, records: Iterable[object]) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def _trajectory_events(trajectory: Trajectory) -> Iterable[dict[str, object]]:
+def trajectory_id(trajectory: Trajectory) -> str:
+    content = encode_json(replace(trajectory, trajectory_id=""))
+    return f"sha256:{sha256(content.encode('utf-8')).hexdigest()}"
+
+
+def trajectory_events(trajectory: Trajectory) -> Iterable[dict[str, object]]:
     common = {"schema_version": SCHEMA_VERSION, "trajectory_id": trajectory.trajectory_id}
     yield {
         **common,
@@ -67,4 +73,4 @@ def _trajectory_events(trajectory: Trajectory) -> Iterable[dict[str, object]]:
 
 
 def write_trajectory(path: Path, trajectory: Trajectory) -> None:
-    write_jsonl(path, _trajectory_events(trajectory))
+    write_jsonl(path, trajectory_events(trajectory))

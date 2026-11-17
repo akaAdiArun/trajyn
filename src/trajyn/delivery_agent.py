@@ -1,7 +1,6 @@
 """Deterministic delivery fixture policy built from public observations."""
 
 from trajyn.agent import AgentContext
-from trajyn.benchmark import RECOVERY_CODES
 from trajyn.models import AgentDecision, AgentIdentity, Scalar, ToolAction
 
 
@@ -36,9 +35,7 @@ class DeliveryReferenceAgent:
     def decide(self, context: AgentContext) -> AgentDecision | None:
         if context.steps:
             latest = context.steps[-1].observation
-            if latest.code == "case_closed" or (
-                not latest.ok and latest.code not in RECOVERY_CODES
-            ):
+            if latest.code == "case_closed":
                 return None
 
         if observed(context, "receipt_id"):
