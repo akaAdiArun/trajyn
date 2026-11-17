@@ -123,9 +123,10 @@ class CapabilityCapsule:
                     raise ValueError("bindings require a like-named observation field")
 
 
-def read_capsule(path: Path) -> CapabilityCapsule:
+def _decode_capsule(record: object) -> CapabilityCapsule:
+    if not isinstance(record, dict):
+        raise ValueError("capsule must be a JSON object")
     try:
-        record = json.loads(path.read_text(encoding="utf-8"))
         steps = []
         for step in record["steps"]:
             guard = step["expect"]
@@ -173,5 +174,15 @@ def read_capsule(path: Path) -> CapabilityCapsule:
         if encode_json(capsule) != encode_json(record):
             raise ValueError("record does not match the capsule schema")
     except (TypeError, ValueError, KeyError, AttributeError) as error:
-        raise ValueError(f"{path}: invalid capsule ({error})") from error
+        raise ValueError(f"invalid capsule ({error})") from error
     return capsule
+
+
+def read_capsule(path: Path) -> CapabilityCapsule:
+    return _decode_capsule(json.loads(path.read_text(encoding="utf-8")))
+
+
+def read_capsules(path: Path) -> tuple[CapabilityCapsule, ...]:
+    return tuple(
+        _decode_capsule(json.loads(line)) for line in path.read_text(encoding="utf-8").splitlines()
+    )

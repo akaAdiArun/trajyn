@@ -30,8 +30,7 @@ def encode_json(value: object) -> str:
     )
 
 
-def write_jsonl(path: Path, records: Iterable[object]) -> None:
-    """Publish a complete file after all records have been encoded."""
+def _publish(path: Path, chunks: Iterable[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
@@ -39,12 +38,20 @@ def write_jsonl(path: Path, records: Iterable[object]) -> None:
             mode="w", encoding="utf-8", newline="\n", dir=path.parent, delete=False
         ) as output:
             temporary = Path(output.name)
-            for record in records:
-                output.write(encode_json(record) + "\n")
+            output.writelines(chunks)
         os.replace(temporary, path)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def write_text(path: Path, text: str) -> None:
+    _publish(path, (text,))
+
+
+def write_jsonl(path: Path, records: Iterable[object]) -> None:
+    """Publish a complete file after all records have been encoded."""
+    _publish(path, (encode_json(record) + "\n" for record in records))
 
 
 def trajectory_id(trajectory: Trajectory) -> str:
