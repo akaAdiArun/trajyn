@@ -31,11 +31,25 @@ Experiment 001 ran all five arms after validation and preregistration.
 The capsule arm verified 0/10 held-out tasks against 3/10 without memory.
 [Protocol](docs/EXPERIMENT_001.md) · [Results](docs/EXPERIMENT_001_RESULTS.md)
 
-## Next · Reusable experience infrastructure
+## Milestone 4 · Public site and branch-aware transfer
 
-- Test branch-aware applicability and abstention beyond tool-interface matching.
-- Introduce multi-trace capsules and a versioned registry with provenance and revocation.
-- Preregister replication across more model pairs and task families, including unaided runs.
+The static project site on GitHub Pages presents the architecture, a stepwise
+replay of a verified execution, and reproducible charts. Search Console verified
+the project URL and accepted its sitemap. The runtime can also wait for a
+matching public observation prefix, abstain, or withdraw capsule guidance on
+divergence. The multiple-branch API preserves independently replayable
+alternatives and waits when they offer conflicting actions.
+[Website](https://akaadiarun.github.io/trajyn/) · [Runtime](docs/BRANCH_TRANSFER.md) ·
+[Experiment 002 protocol](docs/EXPERIMENT_002.md) · [Results](docs/EXPERIMENT_002_RESULTS.md)
+
+## Next · Measure when guidance helps
+
+- Build a validation task set with observed alternative routes and measure both
+  correct activations and missed activations.
+- Preregister a paired test of one ranked candidate versus multiple independently
+  verified alternatives.
+- Explore a versioned registry with provenance and revocation after establishing
+  workable applicability across task families.
 
 Offline fixture results measure the deterministic framework. Assessing
 cross-model learning requires larger partitions, multiple model pairs, and

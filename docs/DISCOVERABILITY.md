@@ -30,6 +30,12 @@ trace and capsule are served at project-relative paths. Hosting operates
 under `/trajyn/`. Crawlers read `robots.txt` on the hostname root.
 [Google's robots specification](https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec)
 
+Search Console verified the URL-prefix property through its HTML tag and
+confirmed the sitemap submission on 17 November 2026.
+[Open the submitted sitemap in Search Console](https://search.google.com/search-console/sitemaps?resource_id=https%3A%2F%2Fakaadiarun.github.io%2Ftrajyn%2F)
+
+### Verification maintenance
+
 1. In [Google Search Console](https://search.google.com/search-console/welcome),
    add the URL-prefix property `https://akaadiarun.github.io/trajyn/`.
 2. Choose **HTML tag**. Copy the value of the `content` attribute from the tag.
@@ -46,6 +52,6 @@ engines control indexing and ranking, and reporting can lag deployment.
 [Sitemap instructions](https://support.google.com/webmasters/answer/7451001)
 
 The website uses its own original [Open Graph image](../site/assets/social-preview.png).
-GitHub's repository card has a separate preview setting. A repository
-maintainer can upload the same image under **Settings → Social preview**.
+GitHub's repository card uses the same image, configured separately under
+**Settings → Social preview**.
 [GitHub preview instructions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)

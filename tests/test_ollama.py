@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from trajyn.agent import AgentContext
-from trajyn.benchmark import generate_delivery_task
+from trajyn.benchmark import DELIVERY_V2, generate_delivery_task
 from trajyn.models import Observation, Step, ToolAction, Usage, public_task
 from trajyn.ollama import InferenceOptions, LocalModel, OllamaAgent, OllamaConnection
 from trajyn.pilot import run_pilot
@@ -121,3 +122,37 @@ def test_local_adapter_requires_a_loopback_endpoint_and_distinct_families(tmp_pa
         OllamaConnection("https://example.com")
     with pytest.raises(ValueError, match="different model families"):
         run_pilot(tmp_path, FixtureConnection(), "first", "first", (0,), (200,))
+
+
+def test_pilot_reuses_verified_sources_without_new_source_calls(tmp_path: Path) -> None:
+    archive = Path(__file__).resolve().parents[1] / "examples/experiment-001/run"
+    original = json.loads((archive / "pilot.json").read_text(encoding="utf-8"))
+    source = LocalModel(**original["source_model"])
+
+    class ArchivedSourceConnection(FixtureConnection):
+        def model(self, name: str) -> LocalModel:
+            return source if name == source.name else super().model(name)
+
+    connection = ArchivedSourceConnection()
+    outcome = run_pilot(
+        tmp_path,
+        connection,
+        source.name,
+        "second",
+        tuple(original["source_seeds"]),
+        (530,),
+        12,
+        workflow=DELIVERY_V2,
+        branch_aware=True,
+        source_archive=archive,
+    )
+    assert outcome["status"] == "completed"
+    assert len(connection.requests) == outcome["target_trials"] == 6
+    assert all(request["model"] == "second" for request in connection.requests)
+    assert (tmp_path / "capsules.jsonl").read_text(encoding="utf-8") == (
+        archive / "capsules.jsonl"
+    ).read_text(encoding="utf-8")
+    metadata = json.loads((tmp_path / "pilot.json").read_text(encoding="utf-8"))
+    assert metadata["source_options"] == original["options"]
+    assert metadata["source_inference"] == original["source_inference"]
+    assert metadata["maximum_model_calls"] == 72

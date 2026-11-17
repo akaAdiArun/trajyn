@@ -41,6 +41,9 @@ def test_site_build_is_crawlable_and_replayable(tmp_path: Path) -> None:
     assert "noindex" not in html
     assert "Experiment 001" in html
     assert "verified 8/8 source tasks" in html
+    assert html.count("Experiment 002 ·") == 4
+    assert "Ministral, unaided" in html
+    assert "Branch-aware transfer had" in html
     assert "SoftwareSourceCode" in html
     assert "Tool arguments" in html and "Guarded procedure" in html
     assert html.count("<h1 ") == 1

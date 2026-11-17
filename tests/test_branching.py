@@ -13,8 +13,9 @@ from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.evaluation import Condition, EvaluationPlan, collect_sources, evaluate, induce_sources
 from trajyn.induction import induce
 from trajyn.models import AgentDecision, PublicTask, Split, public_task
-from trajyn.report import paired_outcomes
+from trajyn.report import paired_outcomes, write_evaluation
 from trajyn.runner import environment_for, run_task
+from trajyn.study import write_study_analysis
 
 CREATED = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -118,6 +119,15 @@ def test_six_arm_offline_counterfactual_records_continued_static_delivery(tmp_pa
         if item["condition"] == "F"
     )
     assert audits[200, "F"]["transitions"][-1]["state"] == BranchState.INCOMPATIBLE
+    output = tmp_path / "evaluation"
+    write_evaluation(output, result)
+    write_study_analysis(output / "results.json", output)
+    summary = json.loads((output / "analysis.json").read_text())["branch_transfer"]
+    assert summary["active"] == 1
+    assert summary["withdrawn"] == 1
+    assert summary["abstained"] == 2
+    assert summary["continued_after_divergence"]["F"] == 0
+    assert summary["continued_after_divergence"]["D"] > 0
 
 
 def test_observed_alternatives_share_a_prefix_and_preserve_source_evidence() -> None:
