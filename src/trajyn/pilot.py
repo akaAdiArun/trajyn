@@ -7,7 +7,7 @@ from pathlib import Path
 from trajyn.evaluation import EvaluationPlan, collect_sources, evaluate, validate_seeds
 from trajyn.induction import induce
 from trajyn.models import Split
-from trajyn.ollama import LocalModel, OllamaAgent, OllamaConnection
+from trajyn.ollama import PROMPT_REVISION, LocalModel, OllamaAgent, OllamaConnection
 from trajyn.recording import write_jsonl
 from trajyn.report import write_evaluation
 
@@ -63,6 +63,7 @@ def run_pilot(
 
     metadata: dict[str, object] = {
         "schema_version": 1,
+        "prompt_revision": PROMPT_REVISION,
         "server_version": connection.api("/api/version").get("version"),
         "source_model": source_model,
         "target_model": target_model,

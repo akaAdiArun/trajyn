@@ -10,6 +10,8 @@ from trajyn.agent import AgentContext
 from trajyn.models import AgentDecision, AgentIdentity, Scalar, ToolAction, ToolSpec, Usage
 from trajyn.recording import encode_json
 
+PROMPT_REVISION = 2
+
 
 @dataclass(frozen=True, slots=True)
 class LocalModel:
@@ -133,8 +135,10 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
     system = (
         "You operate a synthetic delivery-support service. Make exactly one listed tool call "
         "per turn using identifiers from this task and its tool results. Use the authoritative "
-        "carrier observation to decide the remedy. A transient failure can be retried. An "
-        "out-of-stock response requires the refund fallback. Close the case with its receipt."
+        "carrier observation to decide the remedy. Build on successful results already in "
+        "the history and choose the next unfinished operation. Repeat a call only when "
+        "the result says it can be retried. Use the refund fallback after an out-of-stock "
+        "response. Close the case once a remedy receipt is available."
     )
     task = context.task.goal
     if context.memory is not None:
@@ -146,10 +150,11 @@ def _messages(context: AgentContext, *, structured: bool = False) -> list[dict[s
         )
     if structured:
         system += " Return a JSON object with tool and arguments fields."
-        task += "\nAvailable tools:\n" + encode_json([_tool(tool) for tool in context.tools])
-        task += "\nPublic tool history:\n" + encode_json(
+        task += "\nAvailable tools:\n" + encode_json(context.tools)
+        task += "\nPublic tool history in order:\n" + encode_json(
             [{"action": step.action, "observation": step.observation} for step in context.steps]
         )
+        task += "\nChoose the single next tool call that advances the case."
     messages: list[dict[str, object]] = [
         {"role": "system", "content": system},
         {"role": "user", "content": task},
