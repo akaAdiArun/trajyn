@@ -18,6 +18,12 @@ infrastructure, experience learning, open source, and Python.
 
 ## Site and Search Console
 
+The [project website](https://akaadiarun.github.io/trajyn/) returned HTTP 200
+without authentication. Its canonical URL matched the repository homepage.
+The [sitemap](https://akaadiarun.github.io/trajyn/sitemap.xml), social image,
+and evidence downloads also returned HTTP 200. The homepage sent no
+observed `noindex` directive.
+
 The Pages workflow builds static HTML from `site/` and uses the Pages-provided
 base URL for canonical, Open Graph, JSON-LD, and sitemap URLs. The source
 trace and capsule are served at project-relative paths. Hosting operates
