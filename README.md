@@ -11,6 +11,10 @@ a versioned JSONL trajectory format, and a typed capability schema. The offline
 reference agent follows fixed rules and makes no model calls. Live model adapters,
 capability induction, and comparative transfer evaluation belong to later milestones.
 
+The [delivery-exception benchmark](docs/BENCHMARK.md) adds conditional remedies,
+recoverable tool failures, stale observations, and split-specific tool availability.
+Use `--suite delivery` with `generate` or `demo` to exercise it.
+
 ## Get started
 
 Use Python 3.12 or newer. In PowerShell, run these commands from the repository root.

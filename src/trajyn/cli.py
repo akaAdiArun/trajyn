@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from trajyn.agent import OfflineReferenceAgent
+from trajyn.benchmark import generate_delivery_task
+from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.environment import generate_task
 from trajyn.models import Split
 from trajyn.recording import encode_json, write_jsonl, write_trajectory
@@ -37,6 +39,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for command in (generate, demo):
         command.add_argument("--seed", type=_non_negative, default=42)
         command.add_argument("--split", type=Split, choices=list(Split), default=Split.TRAIN)
+        command.add_argument("--suite", choices=("replacement", "delivery"), default="replacement")
     generate.add_argument("--count", type=_positive, default=1)
     generate.add_argument("--output", type=Path, default=Path("data/generated/tasks.jsonl"))
     demo.add_argument("--output", type=Path, default=Path("runs/demo.jsonl"))
@@ -44,18 +47,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     demo.add_argument("--timing", action="store_true", help="record measured elapsed nanoseconds")
 
     args = parser.parse_args(argv)
+    task_generator = generate_delivery_task if args.suite == "delivery" else generate_task
     try:
         if args.command == "generate":
             tasks = (
-                generate_task(seed, args.split) for seed in range(args.seed, args.seed + args.count)
+                task_generator(seed, args.split)
+                for seed in range(args.seed, args.seed + args.count)
             )
             write_jsonl(args.output, tasks)
             print(encode_json({"task_count": args.count, "output": str(args.output)}))
             return 0
 
         trajectory = run_task(
-            generate_task(args.seed, args.split),
-            OfflineReferenceAgent(),
+            task_generator(args.seed, args.split),
+            DeliveryReferenceAgent() if args.suite == "delivery" else OfflineReferenceAgent(),
             max_steps=args.max_steps,
             measure_time=args.timing,
         )

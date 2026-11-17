@@ -24,6 +24,23 @@ class Task:
 
 
 @dataclass(frozen=True, slots=True)
+class DeliveryTask(Task):
+    workflow: str = "delivery-exception-v1"
+
+
+@dataclass(frozen=True, slots=True)
+class PublicTask:
+    ticket_id: str
+    goal: str
+    workflow: str
+
+
+def public_task(task: Task) -> PublicTask:
+    workflow = task.workflow if isinstance(task, DeliveryTask) else "replacement-v1"
+    return PublicTask(task.ticket_id, task.goal, workflow)
+
+
+@dataclass(frozen=True, slots=True)
 class ToolParameter:
     """A required string argument."""
 
