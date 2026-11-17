@@ -81,6 +81,7 @@ Replaying a source trajectory checks each recorded observation before induction.
 | --- | --- |
 | Seeded tasks, state verification, JSONL replay | Implemented |
 | Evidence-grounded induction and compatibility checks | Implemented |
+| Public-context ranking over verified candidate traces | Implemented |
 | Offline and Ollama adapters, five-condition evaluation, CSV/JSON reports | Implemented |
 | Reliable cross-model improvement | Research question |
 | Capability registry, SDKs, and distributed exchange | Planned |
@@ -91,8 +92,7 @@ Use Python 3.12 or newer.
 
 ```sh
 python -m venv .venv
-# Activate with .venv/Scripts/Activate.ps1 on PowerShell.
-# On macOS or Linux, run: source .venv/bin/activate
+source .venv/bin/activate
 python -m pip install -e ".[dev]"
 trajyn demo --suite delivery --split test --seed 200
 trajyn collect
@@ -101,24 +101,31 @@ trajyn evaluate --no-timing
 trajyn compare
 ```
 
+In PowerShell, activate with `.venv/Scripts/Activate.ps1`.
+
 The offline commands write trajectories and a paired report under `runs/`.
 The [local-model guide](docs/LOCAL_PILOT.md) describes the opt-in Ollama path.
 
 ## Experiments and results
 
-![Milestone 2 local pilot. Each condition verified zero of two Llama 3.2 3B target tasks. Invalid calls were 16, 16, 3, 16, and 16 for conditions A through E.](docs/assets/outcomes.png)
+![Experiment 001 verified completion for Granite 4 3B. No memory 3/10, raw trajectory 1/10, summary 1/10, capsule 0/10, irrelevant memory 0/10. Invalid calls were 62, 58, 76, 80, and 120.](docs/assets/outcomes.png)
 
-The offline fixtures verified **8/8** tasks in each condition. In the local
-pilot, Qwen3-8B verified **4/4** source tasks and produced four capsules.
-Llama 3.2 3B verified **0/2** held-out tasks in each condition. The small pilot
-leaves cross-model transfer effectiveness open.
+The preregistered study used Qwen3-8B as source and Granite 4 3B as target,
+with public argument grounding in every arm. Qwen verified **8/8** training
+tasks and yielded five capsules. Granite verified **3/10** with no memory
+and **0/10** with capsules. The capsule arm regressed on three paired tasks.
+The paired 95% interval ranged from **−60 to 0 percentage points**.
 
-[Offline comparison](examples/offline/comparison.md) · [Local-model report and failed attempts](docs/LOCAL_PILOT.md) · [Recorded results](examples/local-pilot/action-first/evaluation/results.json)
+[Protocol](docs/EXPERIMENT_001.md) · [Experiment 001 results](docs/EXPERIMENT_001_RESULTS.md) · [Calibration](docs/CALIBRATION.md)
+
+The earlier offline fixture run verified **8/8** in every arm. The earlier
+Llama 3.2 pilot verified **0/2** in each arm. Both records remain available.
+[Offline comparison](examples/offline/comparison.md) · [Earlier local pilot](docs/LOCAL_PILOT.md)
 
 ## Roadmap
 
-The [roadmap](ROADMAP.md) tracks retrieval, better controlled cross-family
-studies, and future registry and SDK work. The [charter](docs/PROJECT_BRIEF.md)
+The [roadmap](ROADMAP.md) tracks branch-aware retrieval, preregistered
+replication, and future registry and SDK work. The [charter](docs/PROJECT_BRIEF.md)
 defines the research questions and experimental controls.
 
 ## Contributing and license

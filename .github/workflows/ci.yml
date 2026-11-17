@@ -70,3 +70,28 @@ jobs:
               assert trace.trajectory_id == row.trajectory_id
               assert trace.verification.passed == row.passed
           PY
+      - name: Replay and compare Experiment 001 offline
+        run: |
+          root=examples/experiment-001/run
+          trajyn analyze --results "$root/evaluation/results.json" --output runs/experiment-001
+          cmp "$root/evaluation/analysis.json" runs/experiment-001/analysis.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from trajyn.capability import read_capsules
+          from trajyn.evaluation import read_sources
+          from trajyn.induction import induce
+          from trajyn.provenance import read_trajectory
+
+          root = Path("examples/experiment-001")
+          for artifact in (root / "calibration").glob("*/calibration.json"):
+              for attempt in json.loads(artifact.read_text())["attempts"]:
+                  trace = read_trajectory(artifact.parent / attempt["trajectory"])
+                  assert trace.trajectory_id == attempt["trajectory_id"]
+                  assert trace.verification.passed == attempt["verified"]
+          run = root / "run"
+          sources = {source.trajectory_id: source for source in read_sources(run / "source")}
+          for capsule in read_capsules(run / "capsules.jsonl"):
+              source = sources[capsule.evidence[0].trajectory_id]
+              assert capsule == induce(source, created_at=capsule.created_at)
+          PY
