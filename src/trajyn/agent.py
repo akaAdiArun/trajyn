@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from trajyn.memory import Memory
 from trajyn.models import AgentDecision, AgentIdentity, PublicTask, Step, ToolAction, ToolSpec
 
 
@@ -12,6 +13,7 @@ class AgentContext:
     tools: tuple[ToolSpec, ...]
     steps: tuple[Step, ...]
     max_steps: int
+    memory: Memory | None = None
 
 
 class Agent(Protocol):
