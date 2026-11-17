@@ -1,0 +1,19 @@
+# Local tools and Python build products
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Credentials and local experiment outputs
+.env
+.env.*
+/data/generated/
+/runs/
+/capsules/
+/reports/
