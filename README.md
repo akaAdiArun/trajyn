@@ -3,6 +3,8 @@
 TRAJYN is a Python research runtime for studying whether verified experience from one
 agent can help another agent solve structurally related tasks. The
 [project charter](docs/PROJECT_BRIEF.md) describes the research program.
+The [roadmap](ROADMAP.md) tracks milestones and research limitations. TRAJYN is
+distributed under the [Apache License 2.0](LICENSE).
 
 Milestone 1 provides a synthetic support API, a state verifier, a bounded agent runner,
 a versioned JSONL trajectory format, and a typed capability schema. The offline
