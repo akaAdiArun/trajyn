@@ -49,10 +49,10 @@ and Markdown summarizes metrics and failures. Per-attempt JSONL files allow
 the outcomes to be replayed from state. Store generated runs under ignored
 `runs/` and `capsules/` directories.
 
-Fixed policies can verify context isolation, applicability decisions, and
-fallback behavior. The small synthetic sample does not estimate cross-model
-transfer, and the single-trace inducer represents one observed branch per
-capsule.
+Fixed policies verify context isolation, applicability decisions, and fallback
+behavior on this synthetic sample. Cross-model estimates require separate
+model experiments. The single-trace inducer represents one observed branch
+per capsule.
 
 The checked-in [offline comparison](../examples/offline/comparison.md)
 records one run of the default plan. The [seed 0 source trace](../examples/offline/train-0.jsonl)

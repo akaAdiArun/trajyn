@@ -15,6 +15,8 @@ The inducer replays successful training traces and extracts one guarded
 procedure per trace. Transfer checks the public task and tool interface.
 The paired evaluation runs no-memory, raw-trajectory, summary, capsule, and
 irrelevant-memory conditions and exports JSON, CSV, and Markdown.
+An opt-in Ollama adapter can use two distinct local model families with call
+and inference limits and a separate experiment directory.
 
 ## Beyond Milestone 2
 
@@ -22,6 +24,6 @@ irrelevant-memory conditions and exports JSON, CSV, and Markdown.
 - Explore learned compatibility, stricter evidence provenance, and negative-transfer analysis.
 - Add a versioned capability registry and broader tool and provider coverage.
 
-Offline fixture results measure the deterministic framework. Cross-model
-learning requires separate evaluations with real model adapters, larger
-partitions, and evidence beyond these fixtures.
+Offline fixture results measure the deterministic framework. Assessing
+cross-model learning requires larger partitions, multiple model pairs, and
+stronger evidence than a local hardware pilot can provide.

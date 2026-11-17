@@ -84,6 +84,12 @@ def test_paired_cli_pipeline_exports_replayable_data_and_comparison(tmp_path: Pa
         rows = list(csv.DictReader(handle))
     assert len(rows) == 20
     assert rows[0]["outcome_vs_a"] == "same_success"
+    table = [
+        line
+        for line in (output / "comparison.md").read_text(encoding="utf-8").splitlines()
+        if line.startswith("|")
+    ][:7]
+    assert len(table) == 7 and {line.count("|") for line in table} == {12}
     assert main(["compare", "--results", str(result_file), "--output", str(compare)]) == 0
     assert compare.read_bytes() == (output / "comparison.md").read_bytes()
     assert len(read_capsules(capsules)) == 5
