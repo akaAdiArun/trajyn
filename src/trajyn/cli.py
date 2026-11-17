@@ -143,6 +143,7 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
                 expected_source_digest=args.source_digest,
                 expected_target_digest=args.target_digest,
                 branch_aware=args.branch_aware,
+                source_archive=args.source_archive,
             )
         case _:
             raise ValueError("unknown experiment command")
@@ -206,6 +207,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pilot.add_argument("--target-model", required=True)
     pilot.add_argument("--source-digest")
     pilot.add_argument("--target-digest")
+    pilot.add_argument("--source-archive", type=Path, help="reuse a replayed pilot's source pool")
     pilot.add_argument("--branch-aware", action="store_true", help="add condition F")
     pilot.add_argument("--source-seeds", type=_seeds, default=SOURCE_SEEDS)
     pilot.add_argument("--target-seeds", type=_seeds, default=TARGET_SEEDS)

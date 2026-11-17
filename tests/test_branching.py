@@ -3,8 +3,11 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from trajyn.agent import AgentContext
-from trajyn.benchmark import generate_delivery_task
+from trajyn.benchmark import DELIVERY_V2, generate_delivery_task
+from trajyn.branch_evidence import assemble_branches
 from trajyn.branching import BranchState, BranchTransfer
 from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.evaluation import Condition, EvaluationPlan, collect_sources, evaluate, induce_sources
@@ -115,3 +118,35 @@ def test_six_arm_offline_counterfactual_records_continued_static_delivery(tmp_pa
         if item["condition"] == "F"
     )
     assert audits[200, "F"]["transitions"][-1]["state"] == BranchState.INCOMPATIBLE
+
+
+def test_observed_alternatives_share_a_prefix_and_preserve_source_evidence() -> None:
+    agent = DeliveryReferenceAgent()
+    sources = tuple(run_task(generate_delivery_task(seed), agent) for seed in (0, 1, 5))
+    capsules = assemble_branches(sources, created_at=CREATED)
+    assert [capsule.evidence[0].trajectory_id for capsule in capsules] == [
+        source.trajectory_id for source in sources
+    ]
+    assert capsules[0].steps == capsules[2].steps
+    assert capsules[0].steps != capsules[1].steps
+    for seed, selected in ((15, 0), (16, 1)):
+        task = generate_delivery_task(seed)
+        policy = BranchTransfer(public_task(task), environment_for(task).tools, capsules)
+        trace = run_task(task, agent, memory_policy=policy)
+        assert trace.verification.passed
+        assert policy.prompt_steps[0] == 3
+        assert policy.state == BranchState.COMPLETE
+        assert policy.transitions[-1].capsule_id == capsules[selected].capability_id
+
+
+def test_branch_evidence_refuses_mixed_workflows_and_nontraining_sources() -> None:
+    agent = DeliveryReferenceAgent()
+    source = run_task(generate_delivery_task(0), agent)
+    other = run_task(generate_delivery_task(0, workflow=DELIVERY_V2), agent)
+    target = run_task(generate_delivery_task(5, Split.TEST), agent)
+    with pytest.raises(ValueError, match="same workflow"):
+        assemble_branches((source, other), created_at=CREATED)
+    with pytest.raises(ValueError, match="distinct trajectories"):
+        assemble_branches((source, source), created_at=CREATED)
+    with pytest.raises(ValueError, match="training trajectory"):
+        assemble_branches((source, target), created_at=CREATED)

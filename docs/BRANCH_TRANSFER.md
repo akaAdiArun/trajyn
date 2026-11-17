@@ -27,3 +27,15 @@ shadow evaluation of its observed trace. Its continuation count measures
 tool-producing turns that still received static memory after the shadow
 gate would have withheld it. This is an exposure measure. The verifier
 separately measures each task outcome.
+
+## Multiple verified source branches
+
+`assemble_branches(sources, created_at=...)` independently replays and induces
+each supplied training trace for one workflow, normalized goal, and verifier.
+It keeps the existing single-trace capsule format, with each capsule retaining
+its source ID and step references. It rejects duplicate evidence and mixed
+workflows. A caller can pass the resulting candidates to `BranchTransfer`.
+When different procedures still match the same public prefix, the gate waits
+for distinguishing evidence. Identical procedures can corroborate a matching
+branch without changing its actions. Experiment 002 uses one candidate per
+attempt in both D and F to isolate the effect of timing and withdrawal.
