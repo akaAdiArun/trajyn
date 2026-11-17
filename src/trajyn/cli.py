@@ -30,6 +30,7 @@ from trajyn.pilot import SOURCE_SEEDS, TARGET_SEEDS, calibrate_models, run_pilot
 from trajyn.recording import encode_json, write_jsonl, write_text, write_trajectory
 from trajyn.report import read_evaluation, render_report, write_evaluation
 from trajyn.runner import run_task
+from trajyn.study import write_study_analysis
 
 
 def _non_negative(value: str) -> int:
@@ -107,6 +108,9 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
             result = read_evaluation(args.results)
             write_text(args.output, render_report(result))
             return {"trial_count": len(result.trials)}
+        case "analyze":
+            arms = write_study_analysis(args.results, args.output)
+            return {"arms": len(arms), "trial_count": sum(arm.total for arm in arms)}
         case "pilot" | "calibrate":
             workflow = DELIVERY_V2 if args.suite == "delivery-v2" else DELIVERY_V1
             connection = OllamaConnection(
@@ -163,6 +167,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     induction = commands.add_parser("induce", help="derive capsules from verified training data")
     evaluation = commands.add_parser("evaluate", help="run paired held-out memory conditions")
     comparison = commands.add_parser("compare", help="regenerate Markdown from a results document")
+    analysis = commands.add_parser("analyze", help="replay results and summarize paired metrics")
     pilot = commands.add_parser("pilot", help="opt in to a bounded two-model local experiment")
     calibration = commands.add_parser("calibrate", help="measure no-memory validation performance")
     for command in (collect, pilot, calibration):
@@ -187,6 +192,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluation.add_argument("--no-timing", action="store_true")
     comparison.add_argument("--results", type=Path, default=evaluation_path / "results.json")
     comparison.add_argument("--output", type=Path, default=Path("reports/comparison.md"))
+    analysis.add_argument("--results", type=Path, default=evaluation_path / "results.json")
+    analysis.add_argument("--output", type=Path, default=Path("reports/analysis"))
     for command in (pilot, calibration):
         command.add_argument("--ollama-url", default="http://127.0.0.1:11434")
         command.add_argument("--inference-timeout", type=_positive, default=30)
@@ -205,7 +212,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     try:
-        if args.command in {"collect", "induce", "evaluate", "compare", "pilot", "calibrate"}:
+        if args.command in {
+            "collect",
+            "induce",
+            "evaluate",
+            "compare",
+            "analyze",
+            "pilot",
+            "calibrate",
+        }:
             print(encode_json({**_experiment(args), "output": str(args.output)}))
             return 0
         delivery = args.suite != "replacement"
