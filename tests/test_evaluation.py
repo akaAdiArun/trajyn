@@ -1,10 +1,12 @@
 import csv
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from trajyn.benchmark import generate_delivery_task
 from trajyn.capability import read_capsules
 from trajyn.cli import main
 from trajyn.evaluation import (
@@ -15,9 +17,11 @@ from trajyn.evaluation import (
     induce_sources,
     read_sources,
 )
-from trajyn.models import Split
+from trajyn.models import Split, public_task
 from trajyn.provenance import read_trajectory
 from trajyn.report import paired_outcomes, read_evaluation
+from trajyn.retrieval import rank_experience
+from trajyn.runner import environment_for
 from trajyn.transfer import TransferStatus
 
 CREATED = datetime(2026, 1, 1, tzinfo=UTC)
@@ -61,7 +65,9 @@ def test_paired_cli_pipeline_exports_replayable_data_and_comparison(tmp_path: Pa
     result = read_evaluation(result_file)
     assert len(result.trials) == 20
     assert {row.condition for row in result.trials} == set(Condition)
-    assert all(row.passed for row in result.trials)
+    assert [(row.seed, row.condition) for row in result.trials if not row.passed] == [
+        (200, Condition.SUMMARY)
+    ]
     assert {row.agent.model for row in result.trials} == {"delivery-target"}
     assert all(source.agent.model == "delivery-reference" for source in result.sources)
     for trial in result.trials:
@@ -71,8 +77,27 @@ def test_paired_cli_pipeline_exports_replayable_data_and_comparison(tmp_path: Pa
 
     by_trial = {(row.seed, row.condition): row for row in result.trials}
     locker = by_trial[(200, Condition.CAPSULE)]
-    assert locker.transfer is not None and locker.transfer.status == TransferStatus.INCOMPATIBLE
-    assert not locker.memory_delivered and locker.memory_used is False
+    assert locker.transfer is not None and locker.transfer.status == TransferStatus.ACCEPTED
+    assert locker.memory_delivered and locker.memory_used
+    shelf = json.loads((output / "retrieval.json").read_text(encoding="utf-8"))
+    ranked = shelf["targets"][0]["candidates"]
+    assert ranked[0]["source_seed"] == 1
+    assert ranked[-1]["compatibility"] == TransferStatus.INCOMPATIBLE
+    assert shelf["targets"][1]["order"] == ["B", "C", "D", "E", "A"]
+    for seed in (200, 201, 202, 203):
+        assert (
+            len(
+                {
+                    by_trial[(seed, arm)].source_trajectory_id
+                    for arm in (
+                        Condition.RAW,
+                        Condition.SUMMARY,
+                        Condition.CAPSULE,
+                    )
+                }
+            )
+            == 1
+        )
     stale = by_trial[(201, Condition.CAPSULE)]
     assert stale.transfer is not None and stale.transfer.status == TransferStatus.ACCEPTED
     assert stale.memory_used and stale.recovery_episodes == 1
@@ -124,3 +149,27 @@ def test_evaluation_rejects_leakage_and_tampered_provenance(tmp_path: Path) -> N
         evaluate(sources, (), output)
     with pytest.raises(ValueError, match="held-out"):
         EvaluationPlan((200,), split=Split.TRAIN)
+
+
+def test_rankings_depend_on_public_context_and_can_reject_every_candidate(tmp_path: Path) -> None:
+    sources = collect_sources(tmp_path / "source", (0,))
+    capsules = induce_sources(sources, created_at=CREATED)
+    mapping = {
+        source.trajectory_id: capsule for source, capsule in zip(sources, capsules, strict=True)
+    }
+    delivered = generate_delivery_task(202, Split.TEST)
+    stale = generate_delivery_task(201, Split.TEST)
+    first = rank_experience(
+        public_task(delivered), environment_for(delivered).tools, sources, mapping
+    )
+    second = rank_experience(public_task(stale), environment_for(stale).tools, sources, mapping)
+    assert first == second
+    locker = generate_delivery_task(200, Split.TEST)
+    (incompatible,) = rank_experience(
+        public_task(locker),
+        environment_for(locker).tools,
+        sources,
+        mapping,
+    )
+    assert incompatible.compatibility == TransferStatus.INCOMPATIBLE
+    assert incompatible.tool_coverage_bp < 10_000

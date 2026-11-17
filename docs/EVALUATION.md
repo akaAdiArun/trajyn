@@ -1,7 +1,7 @@
 # Paired offline evaluation
 
 The default experiment uses training seeds 0–7, validation seeds 100–105 when
-requested, and test seeds 200–207. All conditions run in the same order against
+requested, and test seeds 200–207. Condition order rotates by one position for
 each fresh held-out task. Each receives the same goal, public tools, target
 agent, and eight-action budget. See [benchmark partitions](BENCHMARK.md).
 
@@ -13,11 +13,14 @@ agent, and eight-action budget. See [benchmark partitions](BENCHMARK.md).
    public branch conditions, including carrier status and positive stock. It
    rejects unsupported actions, unobserved IDs, held-out examples, and records
    whose replay disagrees with the file.
-3. Select the first verified training source by ascending seed. All delivery
-   tasks share a public retrieval goal, so the source ordering resolves ties
-   without inspecting held-out state. Conditions B, C, and D use this same
-   source. A capsule's tool compatibility is checked against the target's
-   published affordances.
+3. Rank verified training sources in the same workflow by capsule applicability
+   and tool compatibility, the fraction of required tool contracts available,
+   and token overlap between public goals. Goals omit the instance ticket ID.
+   Break ties by source seed and content ID. Conditions B, C, and D receive
+   different representations of the same top-ranked source. When every
+   candidate is incompatible, D rejects memory while B and C still receive
+   the top candidate's corresponding representations. Scores and reasons
+   appear in `retrieval.json`.
 4. Start a new environment and new target instance for each task-condition pair.
    Use this exact paired matrix.
 
