@@ -8,7 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from trajyn.agent import Agent, OfflineReferenceAgent
-from trajyn.benchmark import RECOVERY_CODES, generate_delivery_task
+from trajyn.benchmark import DELIVERY_V1, DELIVERY_V2, RECOVERY_CODES, generate_delivery_task
 from trajyn.capability import CapabilityCapsule
 from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.environment import generate_task
@@ -125,11 +125,12 @@ def collect_sources(
     agent_factory: Callable[[], Agent] = DeliveryReferenceAgent,
     max_steps: int = MAX_STEPS,
     measure_time: bool = False,
+    workflow: str = DELIVERY_V1,
 ) -> tuple[Trajectory, ...]:
     validate_seeds(seeds)
     sources = tuple(
         run_task(
-            generate_delivery_task(seed),
+            generate_delivery_task(seed, workflow=workflow),
             agent_factory(),
             max_steps=max_steps,
             measure_time=measure_time,
@@ -179,11 +180,13 @@ def _validate_sources(
     capsules: tuple[CapabilityCapsule, ...],
 ) -> dict[str, CapabilityCapsule]:
     validate_seeds(tuple(source.task.seed for source in sources))
+    workflow = public_task(sources[0].task).workflow
     for source in sources:
         replay_trajectory(source)
         if (
             source.task.split != Split.TRAIN
-            or public_task(source.task).workflow != "delivery-exception-v1"
+            or workflow not in (DELIVERY_V1, DELIVERY_V2)
+            or public_task(source.task).workflow != workflow
         ):
             raise ValueError("evaluation retrieval requires delivery training trajectories")
     capsule_by_source = {}
@@ -301,7 +304,9 @@ def evaluate(
     retrieval = []
     conditions = tuple(Condition)
     for index, seed in enumerate(plan.seeds):
-        task = generate_delivery_task(seed, plan.split)
+        task = generate_delivery_task(
+            seed, plan.split, workflow=public_task(sources[0].task).workflow
+        )
         ranking = rank_experience(
             public_task(task), environment_for(task).tools, sources, capsule_by_source
         )

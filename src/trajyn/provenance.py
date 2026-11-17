@@ -62,8 +62,11 @@ def read_trajectory(path: Path) -> Trajectory:
         task_record = start["task"]
         seed = _nonnegative_int(task_record["seed"], "seed")
         split = Split(task_record["split"])
-        generator = generate_delivery_task if "workflow" in task_record else generate_task
-        task = generator(seed, split)
+        task = (
+            generate_delivery_task(seed, split, workflow=task_record["workflow"])
+            if "workflow" in task_record
+            else generate_task(seed, split)
+        )
         agent = AgentIdentity(**start["agent"])
         if (
             not isinstance(agent.provider, str)

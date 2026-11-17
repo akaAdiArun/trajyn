@@ -3,7 +3,7 @@ from dataclasses import asdict
 import pytest
 
 from trajyn.agent import AgentContext
-from trajyn.benchmark import DeliveryEnvironment, generate_delivery_task
+from trajyn.benchmark import DELIVERY_V2, DeliveryEnvironment, generate_delivery_task
 from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.models import AgentDecision, Split, ToolAction
 from trajyn.runner import run_task
@@ -106,3 +106,40 @@ def test_link_validation_is_order_independent_and_replays_legacy_errors() -> Non
     assert env.replay(reordered, "ticket_id_mismatch").code == "ticket_id_mismatch"
     assert env.replay(reordered, "product_id_mismatch").code == "parcel_id_mismatch"
     assert env.verify() == before
+
+
+@pytest.mark.parametrize(
+    ("split", "seeds"),
+    [
+        (Split.TRAIN, range(320, 328)),
+        (Split.VALIDATION, range(400, 406)),
+        (Split.TEST, range(512, 520)),
+    ],
+)
+def test_expanded_workflows_are_reproducible_and_state_verified(split: Split, seeds: range) -> None:
+    trajectories = []
+    for seed in seeds:
+        task = generate_delivery_task(seed, split, workflow=DELIVERY_V2)
+        assert task == generate_delivery_task(seed, split, workflow=DELIVERY_V2)
+        result = run_task(task, DeliveryReferenceAgent(), max_steps=12)
+        assert result.verification.passed
+        assert result.verification.verifier.endswith("_v2")
+        trajectories.append(result)
+    if split == Split.TEST:
+        tools = {step.action.tool for result in trajectories for step in result.steps}
+        assert {
+            "find_parcel",
+            "query_carrier_backup",
+            "approve_refund",
+            "locker_replacement",
+        } <= tools
+        assert any(step.observation.code == "warehouse_retry" for step in trajectories[0].steps)
+
+
+def test_expanded_refund_requires_stateful_approval() -> None:
+    task = generate_delivery_task(513, Split.TEST, workflow=DELIVERY_V2)
+    complete = run_task(task, DeliveryReferenceAgent(), max_steps=12)
+    environment = DeliveryEnvironment(task)
+    refund = next(step for step in complete.steps if step.action.tool == "issue_refund")
+    assert environment.execute(refund.action).code == "approval_required"
+    assert "incorrect_approval" in environment.verify().failures

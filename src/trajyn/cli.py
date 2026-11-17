@@ -4,10 +4,11 @@ import argparse
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 from trajyn.agent import OfflineReferenceAgent
-from trajyn.benchmark import generate_delivery_task
+from trajyn.benchmark import DELIVERY_V1, DELIVERY_V2, generate_delivery_task
 from trajyn.capability import read_capsules
 from trajyn.delivery_agent import DeliveryReferenceAgent
 from trajyn.environment import generate_task
@@ -70,7 +71,10 @@ def _created_at(value: str) -> datetime:
 def _experiment(args: argparse.Namespace) -> dict[str, object]:
     match args.command:
         case "collect":
-            sources = collect_sources(args.output, args.seeds, max_steps=args.max_steps)
+            workflow = DELIVERY_V2 if args.suite == "delivery-v2" else DELIVERY_V1
+            sources = collect_sources(
+                args.output, args.seeds, max_steps=args.max_steps, workflow=workflow
+            )
             return {
                 "source_count": len(sources),
                 "verified": sum(s.verification.passed for s in sources),
@@ -104,6 +108,7 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
             write_text(args.output, render_report(result))
             return {"trial_count": len(result.trials)}
         case "pilot" | "calibrate":
+            workflow = DELIVERY_V2 if args.suite == "delivery-v2" else DELIVERY_V1
             connection = OllamaConnection(
                 args.ollama_url,
                 InferenceOptions(
@@ -114,7 +119,12 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
             )
             if args.command == "calibrate":
                 return calibrate_models(
-                    args.output, connection, tuple(args.models), args.seeds, args.max_steps
+                    args.output,
+                    connection,
+                    tuple(args.models),
+                    args.seeds,
+                    args.max_steps,
+                    workflow=workflow,
                 )
             return run_pilot(
                 args.output,
@@ -124,6 +134,9 @@ def _experiment(args: argparse.Namespace) -> dict[str, object]:
                 args.source_seeds,
                 args.target_seeds,
                 args.max_steps,
+                workflow=workflow,
+                expected_source_digest=args.source_digest,
+                expected_target_digest=args.target_digest,
             )
         case _:
             raise ValueError("unknown experiment command")
@@ -137,7 +150,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for command in (generate, demo):
         command.add_argument("--seed", type=_non_negative, default=42)
         command.add_argument("--split", type=Split, choices=list(Split), default=Split.TRAIN)
-        command.add_argument("--suite", choices=("replacement", "delivery"), default="replacement")
+        command.add_argument(
+            "--suite", choices=("replacement", "delivery", "delivery-v2"), default="replacement"
+        )
     generate.add_argument("--count", type=_positive, default=1)
     generate.add_argument("--output", type=Path, default=Path("data/generated/tasks.jsonl"))
     demo.add_argument("--output", type=Path, default=Path("runs/demo.jsonl"))
@@ -150,6 +165,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     comparison = commands.add_parser("compare", help="regenerate Markdown from a results document")
     pilot = commands.add_parser("pilot", help="opt in to a bounded two-model local experiment")
     calibration = commands.add_parser("calibrate", help="measure no-memory validation performance")
+    for command in (collect, pilot, calibration):
+        command.add_argument("--suite", choices=("delivery", "delivery-v2"), default="delivery")
     sources_path = Path("runs/source")
     capsules_path = Path("capsules/induced.jsonl")
     evaluation_path = Path("runs/evaluation")
@@ -177,6 +194,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("--grounding", choices=("none", "public"), default="none")
     pilot.add_argument("--source-model", required=True)
     pilot.add_argument("--target-model", required=True)
+    pilot.add_argument("--source-digest")
+    pilot.add_argument("--target-digest")
     pilot.add_argument("--source-seeds", type=_seeds, default=SOURCE_SEEDS)
     pilot.add_argument("--target-seeds", type=_seeds, default=TARGET_SEEDS)
     pilot.add_argument("--output", type=Path, default=Path("runs/local-pilot"))
@@ -189,7 +208,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command in {"collect", "induce", "evaluate", "compare", "pilot", "calibrate"}:
             print(encode_json({**_experiment(args), "output": str(args.output)}))
             return 0
-        task_generator = generate_delivery_task if args.suite == "delivery" else generate_task
+        delivery = args.suite != "replacement"
+        workflow = DELIVERY_V2 if args.suite == "delivery-v2" else DELIVERY_V1
+        task_generator = (
+            partial(generate_delivery_task, workflow=workflow) if delivery else generate_task
+        )
         if args.command == "generate":
             tasks = (
                 task_generator(seed, args.split)
@@ -201,7 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         trajectory = run_task(
             task_generator(args.seed, args.split),
-            DeliveryReferenceAgent() if args.suite == "delivery" else OfflineReferenceAgent(),
+            DeliveryReferenceAgent() if delivery else OfflineReferenceAgent(),
             max_steps=args.max_steps,
             measure_time=args.timing,
         )

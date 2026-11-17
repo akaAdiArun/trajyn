@@ -41,11 +41,19 @@ class DeliveryReferenceAgent:
         if observed(context, "receipt_id"):
             tool = "close_case"
         elif not observed(context, "parcel_id"):
-            tool = "read_case"
+            tool = (
+                "find_parcel"
+                if context.steps and latest.code == "case_needs_lookup"
+                else "read_case"
+            )
         else:
             match observed(context, "status"):
                 case None:
-                    tool = "inspect_parcel"
+                    tool = (
+                        "query_carrier_backup"
+                        if context.steps and latest.code == "carrier_unavailable"
+                        else "inspect_parcel"
+                    )
                 case "delivered":
                     tool = "acknowledge_delivery"
                 case "held":
@@ -62,7 +70,13 @@ class DeliveryReferenceAgent:
         available = observed(context, "available")
         if available is None:
             return "get_stock"
-        if available is False or context.steps[-1].observation.code == "out_of_stock":
+        if available is False or any(
+            step.observation.code == "out_of_stock" for step in context.steps
+        ):
+            if not observed(context, "approval_id") and any(
+                tool.name == "approve_refund" for tool in context.tools
+            ):
+                return "approve_refund"
             return "issue_refund"
         if any(tool.name == "locker_replacement" for tool in context.tools):
             return "locker_replacement"
