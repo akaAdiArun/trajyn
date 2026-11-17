@@ -141,8 +141,8 @@ experimental controls.
 
 ## Contributing and license
 
-See [AGENTS.md](AGENTS.md) for repository conventions. Run `ruff check .`,
-`ruff format --check .`, `mypy`, and `pytest` before opening a pull request.
+Run `ruff check .`, `ruff format --check .`, `mypy`, and `pytest` before opening
+a pull request.
 The README graphics have a [local renderer](docs/assets/README.md).
 
 TRAJYN is open source under the [Apache License 2.0](LICENSE).
