@@ -29,4 +29,12 @@ class CapsuleMemory:
     steps: tuple[CapabilityStep, ...]
 
 
-type Memory = RawMemory | SummaryMemory | CapsuleMemory
+@dataclass(frozen=True, slots=True)
+class LessonMemory:
+    """Only a fixed renderer can produce this short, symbolic or live hint."""
+
+    lesson_id: str
+    hint: str
+
+
+type Memory = RawMemory | SummaryMemory | CapsuleMemory | LessonMemory

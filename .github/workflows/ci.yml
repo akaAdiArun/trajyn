@@ -35,6 +35,10 @@ jobs:
         run: python -m pytest
       - name: Test the scroll replay progress mapping
         run: node --test tests/test_replay_motion.mjs
+      - name: Replay the evidence gate fixture without local models
+        run: |
+          python -m trajyn.lesson_study demo --output runs/experiment-003-demo
+          python -m trajyn.lesson_study replay --output runs/experiment-003-demo
       - name: Build wheel and source distribution
         run: python -m build
       - name: Smoke test the installed wheel

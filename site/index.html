@@ -16,7 +16,7 @@
       <a class="wordmark" href="./" aria-label="TRAJYN home">TRAJYN</a>
       <nav aria-label="Website">
         <a href="#replay">Replay</a>
-        <a href="#experiments">Results</a>
+        <a href="#experiments">Progress</a>
         <a href="https://github.com/akaAdiArun/trajyn">GitHub</a>
       </nav>
     </div>
@@ -188,22 +188,33 @@
     <section class="chapter results-chapter" id="experiments" aria-labelledby="experiments-heading">
       <div class="wrap">
         <header class="chapter-head" data-motion-heading>
-          <p class="kicker">Results</p>
-          <div class="heading-window"><h2 id="experiments-heading">So far, we haven’t shown that passing along advice makes the next AI do better.</h2></div>
+          <div class="heading-window"><h2 id="experiments-heading">Research Progress</h2></div>
           <p class="chapter-intro">A verifier checked which tasks were complete. The studies also recorded when the AI received advice.</p>
         </header>
         <div class="results-spread">
+          <article aria-labelledby="experiment-003b">
+            <h3 id="experiment-003b">Experiment 003B — Waiting for evidence beat giving advice up front</h3>
+            <p>All 96 target runs completed. The evidence-gated hint, no memory, and the original prefix gate each scored <strong>18/24</strong> verified completions. Showing the same hint up front scored <strong>12/24</strong>. Waiting did not improve completion over no memory.</p>
+            <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_003B_RESULTS.md">Full results</a> · <a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_003B_FROZEN.json">Frozen manifest</a></p>
+          </article>
+          <article class="results-note">
+            <h3>Experiment 003 — Qwen induction produced no accepted lesson</h3>
+            <p>Three revisions failed validation, so no target runs started.</p>
+            <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_003.md">Read Experiment 003</a></p>
+          </article>
+        </div>
+        <div class="results-spread earlier-results">
+          <article class="results-note" aria-labelledby="experiment-002-heading">
+            <h3 id="experiment-002-heading">Experiment 002 — The original gate withheld advice in all $abstained attempts</h3>
+            <p>It matched no memory without delivering advice.</p>
+            <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_002_RESULTS.md">Read Experiment 002 results</a></p>
+          </article>
           <article aria-labelledby="experiment-001-heading">
-            <h3 id="experiment-001-heading">Experiment 001</h3>
+            <h3 id="experiment-001-heading">Experiment 001 — The saved procedure did not help</h3>
             <p>Verified completion on ten receiving-model tasks.</p>
             <div class="completion-marks" data-motion-marks>$completion_marks</div>
             <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_001_RESULTS.md">Read Experiment 001 results</a></p>
           </article>
-          <aside class="results-note" aria-labelledby="experiment-002-heading">
-            <h3 id="experiment-002-heading">Experiment 002</h3>
-            <p><strong>Withheld advice in all $abstained of its attempts.</strong> It matched the no-advice baseline on the same tasks.</p>
-            <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_002_RESULTS.md">Read Experiment 002 results</a></p>
-          </aside>
         </div>
         <details class="all-results">
           <summary>All conditions and results</summary>

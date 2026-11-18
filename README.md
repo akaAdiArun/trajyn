@@ -36,6 +36,9 @@ So far, we haven’t shown that passing along advice makes the next AI do better
 | --- | --- |
 | [Experiment 001](docs/EXPERIMENT_001_RESULTS.md) | **3 of 10** tasks completed without advice. **0 of 10** completed with the saved procedure. |
 | [Experiment 002](docs/EXPERIMENT_002_RESULTS.md) | The newer method **withheld advice in all 24 attempts** and matched the no-advice baseline. |
+| [Experiment 003B](docs/EXPERIMENT_003B_RESULTS.md) | All **96 target cells** completed. The evidence-gated hint matched no memory and the original prefix gate at **18/24** verified completions, so it did not improve completion over no memory in this simulator. The same hint shown up front scored **12/24**. |
+
+The three earlier Qwen induction attempts produced no accepted lesson and are documented separately in [Experiment 003](docs/EXPERIMENT_003.md).
 
 [Website results and all conditions](https://akaadiarun.github.io/trajyn/#experiments)
 

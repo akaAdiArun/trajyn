@@ -46,7 +46,19 @@ def test_site_build_is_crawlable_and_replayable(tmp_path: Path) -> None:
     assert html.count("Experiment 002 ·") == 4
     assert "Ministral, unaided" in html
     assert "Branch-aware transfer had" in html
-    assert "Withheld advice in all 24 of its attempts." in html
+    assert "The original gate withheld advice in all 24 attempts" in html
+    assert '<a href="#experiments">Progress</a>' in html
+    assert 'id="experiments-heading">Research Progress</h2>' in html
+    assert html.index('id="experiment-003b"') < html.index('id="experiment-002-heading"')
+    assert "Waiting did not improve completion over no memory." in html
+    assert all(
+        f"/docs/{name}" in html
+        for name in (
+            "EXPERIMENT_003B_RESULTS.md",
+            "EXPERIMENT_003B_FROZEN.json",
+            "EXPERIMENT_003.md",
+        )
+    )
     assert "The case stayed open." in html
     assert html.count("Acknowledged delivery and closed the case.") == 2
     assert "SoftwareSourceCode" in html
