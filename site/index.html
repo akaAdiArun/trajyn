@@ -29,6 +29,7 @@
         <p class="lead">TRAJYN is a research project about helping one AI learn from another AI’s work. It records what the first AI tried, checks what actually worked, and keeps the useful steps for a future task.</p>
         <p class="status"><strong>Today:</strong> a working prototype tested in a simulator. It doesn’t yet connect to Claude Code or Codex.</p>
         <a class="primary" href="#replay">Follow the receipt <span aria-hidden="true">→</span></a>
+        <button type="button" class="intro-restart" data-intro-restart hidden>Replay opening</button>
       </div>
       <figure class="slip">
         <figcaption>
@@ -61,41 +62,79 @@
               <div class="replay-controls" role="group" aria-label="Replay controls" hidden>
                 <button type="button" data-play-toggle>Play</button>
                 <button type="button" data-restart>Replay</button>
+                <button type="button" data-inspect aria-controls="story-records" aria-expanded="false">Inspect record</button>
                 <div class="story-meter">
-                  <label for="story-progress">Scroll through the case</label>
+                  <label for="story-progress">Scroll to follow the evidence</label>
                   <progress id="story-progress" max="1" value="0"></progress>
                 </div>
               </div>
-              <div class="replay-route">
-                <div class="route-board">
-                  <svg class="replay-spine" viewBox="0 0 14 320" preserveAspectRatio="none" aria-hidden="true">
-                    <path d="M5 32V288"/>
-                    <path class="replay-spine-fill" pathLength="1" d="M5 32V288"/>
+              <nav class="scene-nav" aria-label="Recorded actions"><ol>$replay_links</ol></nav>
+
+              <div class="scene-deck">
+                <div class="evidence-scene" hidden aria-hidden="true">
+                  <div class="scene-header">
+                    <span class="kicker">Archived execution / Case 01</span>
+                    <span class="scene-phase" data-scene-phase>Case opened</span>
+                  </div>
+                  <svg class="evidence-path path-wide" viewBox="0 0 1000 500" preserveAspectRatio="none">
+                    <path class="path-guide" d="M200 357 C352 357 366 229 510 229 S645 357 800 357"/>
+                    <path class="path-ink" pathLength="1" data-receipt-path d="M200 357 C352 357 366 229 510 229 S645 357 800 357"/>
+                    <circle cx="200" cy="357" r="6"/><circle cx="800" cy="357" r="6"/>
                   </svg>
-                  <nav aria-label="Recorded actions">
-                    <ol>$replay_links</ol>
-                  </nav>
+                  <svg class="evidence-path path-tall" viewBox="0 0 360 560" preserveAspectRatio="none">
+                    <path class="path-guide" d="M115 187 C115 264 230 223 230 303 S206 351 206 390"/>
+                    <path class="path-ink" pathLength="1" data-receipt-path d="M115 187 C115 264 230 223 230 303 S206 351 206 390"/>
+                    <circle cx="115" cy="187" r="5"/><circle cx="206" cy="390" r="5"/>
+                  </svg>
+                  <div class="film-document film-case">
+                    <p class="kicker">01 / Read the case</p>
+                    <p class="film-headline">Parcel reported missing</p>
+                    <p class="film-field"><span>Case</span><code>$scene_case</code></p>
+                    <p class="film-field"><span>Parcel</span><code>$scene_parcel</code></p>
+                    <p class="film-next">Next → Check the carrier</p>
+                  </div>
+                  <div class="film-document film-carrier">
+                    <p class="kicker">02 / Carrier inspection</p>
+                    <p class="film-headline">$scene_status</p>
+                    <p class="film-context">Carrier confirmed the parcel was lost.</p>
+                    <p class="film-field"><span>Parcel</span><code>$scene_parcel</code></p>
+                    <p class="film-field"><span>Product</span><code>$scene_product</code></p>
+                    <p class="film-next">Next → Send a replacement</p>
+                  </div>
+                  <div class="film-document film-source">
+                    <p class="kicker">03 / Source</p>
+                    <p class="film-headline">Send a replacement</p>
+                    <p class="film-context">Replacement accepted.</p>
+                    <p class="film-next">Output → Receipt returned</p>
+                  </div>
+                  <div class="film-document film-destination">
+                    <p class="kicker">04 / Destination</p>
+                    <p class="film-headline">Close the case</p>
+                    <p class="film-context">Requires the replacement receipt.</p>
+                    <p class="accepted-input">Input accepted <code>$scene_receipt</code></p>
+                  </div>
+                  <div class="receipt-token" hidden>
+                    <p class="kicker">Recorded artifact / 03 → 04</p>
+                    <p class="receipt-title">Receipt</p>
+                    <p class="receipt-number"><code>$scene_receipt</code></p>
+                    <p class="receipt-proof">Replacement accepted</p>
+                  </div>
                   <p class="handoff-note">The next step needs this receipt.</p>
-                  <div class="receipt-track" aria-hidden="true">
-                    <svg viewBox="0 0 136 320" preserveAspectRatio="none">
-                      <path data-receipt-path pathLength="1" d="M33 160H84Q96 160 96 176V272Q96 288 84 288H33"/>
-                    </svg>
-                    <span class="receipt-endpoint returned">Receipt</span>
-                    <span class="receipt-endpoint used">Receipt</span>
-                    <span class="receipt-token" hidden>Receipt</span>
+                  <div class="closure-stamp">
+                    <strong>Case closed</strong>
+                    <span>Independent verification passed</span>
                   </div>
                 </div>
+                <div class="replay-pane" id="story-records" aria-live="polite">$replay_steps</div>
+              </div>
+              <p class="sr-only" role="status" data-accessible-phase></p>
+              <div class="replay-footer">
                 <nav class="replay-records" aria-label="Other replay records">
                   <a href="#trace-1" aria-controls="trace-1">Task input</a>
                   <a href="#trace-6" aria-controls="trace-6">Final verification</a>
                   <a href="#trace-7" aria-controls="trace-7">Saved procedure</a>
                 </nav>
-              </div>
-              <div class="replay-stage">
-                <div class="replay-pane" aria-live="polite">$replay_steps</div>
-                <div class="replay-result" role="status">
-                  <p><strong>Verified outcome</strong> · Case closed</p>
-                </div>
+                <div class="replay-result"><p><strong>Verified outcome</strong> · Case closed</p></div>
               </div>
             </div>
           </div>
@@ -133,7 +172,7 @@
         </div>
         <figure class="case-fork" data-motion-fork>
           <svg viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true">
-            <path class="fork-stem" d="M50 0v12"/>
+            <path class="fork-stem" pathLength="1" d="M50 0v12"/>
             <path class="fork-replace" pathLength="1" d="M50 12H25v36"/>
             <path class="fork-acknowledge" pathLength="1" d="M50 12h25v36"/>
           </svg>
