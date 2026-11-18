@@ -50,23 +50,43 @@
 
     <section class="chapter replay-chapter" id="replay" aria-labelledby="replay-heading">
       <div class="wrap">
-        <header class="chapter-head">
+        <header class="chapter-head" data-chapter-reveal>
           <p class="kicker">Replay / Case 01</p>
           <h2 id="replay-heading">A receipt, not a guess</h2>
-          <p>Follow the four recorded actions. At stop 03, the simulator returns a receipt. At stop 04, the AI sends that same receipt back to close the case.</p>
+          <p class="chapter-intro">Animated replay of a recorded run in a simulator. No AI is running live.</p>
         </header>
         <div class="replay" data-replay>
+          <div class="replay-controls" role="group" aria-label="Replay controls" hidden>
+            <button type="button" data-play-toggle>Play</button>
+            <button type="button" data-restart>Replay</button>
+          </div>
           <div class="replay-route">
-            <nav aria-label="Recorded actions">
-              <ol>$replay_links</ol>
-            </nav>
+            <div class="route-board">
+              <nav aria-label="Recorded actions">
+                <ol>$replay_links</ol>
+              </nav>
+              <p class="handoff-note">The next step needs this receipt.</p>
+              <div class="receipt-track" aria-hidden="true">
+                <svg viewBox="0 0 84 292" preserveAspectRatio="none">
+                  <path d="M34 160H47Q51 160 51 166V254Q51 260 47 260H34"/>
+                </svg>
+                <span class="receipt-endpoint returned">Receipt</span>
+                <span class="receipt-endpoint used">Receipt</span>
+                <span class="receipt-token" hidden>Receipt</span>
+              </div>
+            </div>
             <nav class="replay-records" aria-label="Other replay records">
               <a href="#trace-1" aria-controls="trace-1">Task input</a>
               <a href="#trace-6" aria-controls="trace-6">Final verification</a>
               <a href="#trace-7" aria-controls="trace-7">Saved procedure</a>
             </nav>
           </div>
-          <div class="replay-pane" aria-live="polite">$replay_steps</div>
+          <div class="replay-stage">
+            <div class="replay-pane" aria-live="polite">$replay_steps</div>
+            <div class="replay-result" role="status">
+              <p><strong>Verified outcome</strong> · Case closed</p>
+            </div>
+          </div>
         </div>
         <p class="marginalia">This run shows how TRAJYN records a lesson. It doesn’t show that the lesson improved another AI’s performance.</p>
         <p class="source-links"><a href="evidence/source.jsonl">Download source JSONL</a><a href="evidence/capsule.json">Download saved procedure (JSON)</a></p>
@@ -75,10 +95,10 @@
 
     <section class="chapter" id="second-case" aria-labelledby="second-case-heading">
       <div class="wrap">
-        <header class="chapter-head">
+        <header class="chapter-head" data-chapter-reveal>
           <p class="kicker">Comparison / Case 02</p>
           <h2 id="second-case-heading">A similar problem. A different answer.</h2>
-          <p>A missing parcel report starts both cases. The carrier evidence determines which response fits.</p>
+          <p class="chapter-intro">A missing parcel report starts both cases. The carrier evidence determines which response fits.</p>
         </header>
         <div class="case-spread">
           <article>
@@ -116,9 +136,10 @@
 
     <section class="chapter results-chapter" id="experiments" aria-labelledby="experiments-heading">
       <div class="wrap">
-        <header class="chapter-head">
+        <header class="chapter-head" data-chapter-reveal>
           <p class="kicker">Results</p>
           <h2 id="experiments-heading">So far, we haven’t shown that passing along advice makes the next AI do better.</h2>
+          <p class="chapter-intro">A verifier checked which tasks were complete. The studies also recorded when the AI received advice.</p>
         </header>
         <div class="results-spread">
           <article aria-labelledby="experiment-001-heading">
@@ -142,10 +163,10 @@
 
     <section class="chapter" id="architecture" aria-labelledby="architecture-heading">
       <div class="wrap end-spread">
-        <header class="chapter-head">
+        <header class="chapter-head" data-chapter-reveal>
           <p class="kicker">Architecture</p>
           <h2 id="architecture-heading">What gets saved?</h2>
-          <p>TRAJYN records the actions and responses, then checks the resulting state. When a run passes, it can save a procedure that points to where each input came from.</p>
+          <p class="chapter-intro">TRAJYN records the actions and responses, then checks the resulting state. When a run passes, it can save a procedure that points to where each input came from.</p>
         </header>
         <div>
           <dl class="definitions">

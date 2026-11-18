@@ -96,10 +96,11 @@ def _recorded(blocks: str) -> str:
     return f'<details class="recorded"><summary>Show recorded data</summary>{blocks}</details>'
 
 
-def _panel(anchor: int, label: str, body: str, kicker: str = "") -> str:
+def _panel(anchor: int, label: str, body: str, kicker: str = "", *, action: bool = False) -> str:
     heading = f'<p class="kicker">{kicker}</p>' if kicker else ""
     return (
-        f'<article class="evidence" id="trace-{anchor}" data-evidence>'
+        f'<article class="evidence"{" data-action" if action else ""} '
+        f'id="trace-{anchor}" data-evidence>'
         f"{heading}<h3>{label}</h3>{body}</article>"
     )
 
@@ -176,14 +177,21 @@ def render_replay(output: Path) -> tuple[str, str, str]:
             "Environment observation", step.observation, receipt if number == 3 else None
         )
         records = response + request if number == 3 else request + response
+        receipt_value = (
+            f'<p class="receipt-value"><strong>{stop.tag}</strong> '
+            f"<code>{escape(receipt)}</code></p>"
+            if stop.tag
+            else ""
+        )
         panels.append(
             _panel(
                 anchor,
                 stop.label,
-                f"<dl><div><dt>System returned</dt><dd>{stop.result}</dd></div>"
+                receipt_value + f"<dl><div><dt>System returned</dt><dd>{stop.result}</dd></div>"
                 f"<div><dt>What this allowed</dt><dd>{stop.consequence}</dd></div></dl>"
                 + _recorded(records),
                 f"Stop {number:02}" + (f" / {stop.tag}" if stop.tag else ""),
+                action=True,
             )
         )
     panels.extend(
