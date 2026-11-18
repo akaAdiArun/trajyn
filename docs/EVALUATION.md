@@ -1,5 +1,10 @@
 # Paired offline evaluation
 
+The evaluator below uses deterministic target fixtures. Experiment 003B used
+live Granite inference with a separate frozen protocol, comparing no memory,
+the original prefix gate, and the same compiled hint shown on evidence or up
+front. [Experiment 003B protocol](EXPERIMENT_003B.md) · [Results](EXPERIMENT_003B_RESULTS.md)
+
 The default experiment uses training seeds 0–7, validation seeds 100–105 when
 requested, and test seeds 200–207. Condition order rotates by one position for
 each fresh held-out task. Each receives the same goal, public tools, target

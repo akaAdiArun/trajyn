@@ -42,15 +42,26 @@ alternatives and waits when they offer conflicting actions.
 [Website](https://akaadiarun.github.io/trajyn/) · [Runtime](docs/BRANCH_TRANSFER.md) ·
 [Experiment 002 protocol](docs/EXPERIMENT_002.md) · [Results](docs/EXPERIMENT_002_RESULTS.md)
 
-## Next · Measure when guidance helps
+## Assignment 07 · Evidence-gated transfer (completed)
 
-- Build a validation task set with observed alternative routes and measure both
-  correct activations and missed activations.
-- Preregister a paired test of one ranked candidate versus multiple independently
-  verified alternatives.
-- Explore a versioned registry with provenance and revocation after establishing
-  workable applicability across task families.
+The evidence gate checks live public observations before offering a hint.
+Three Qwen induction revisions produced no accepted lesson and started zero
+target runs. A separate study, Experiment 003B, compiled a receipt handoff
+lesson deterministically from verified Qwen training traces.
 
-Offline fixture results measure the deterministic framework. Assessing
-cross-model learning requires larger partitions, multiple model pairs, and
-stronger evidence than a local hardware pilot can provide.
+All **96 target runs** completed. The gated hint matched no memory and the
+original prefix gate at **18/24** verified completions. The same hint shown up
+front scored **12/24**. No completion gain over no memory was shown.
+
+[Closed GitHub milestone](https://github.com/akaAdiArun/trajyn/milestone/1) ·
+[Merged PR #26](https://github.com/akaAdiArun/trajyn/pull/26) ·
+[Qwen induction record](docs/EXPERIMENT_003.md) ·
+[Experiment 003B protocol](docs/EXPERIMENT_003B.md) ·
+[Experiment 003B results](docs/EXPERIMENT_003B_RESULTS.md)
+
+## Next · Planned research
+
+- Study evidence-gated guidance in a coding workflow. This study is planned.
+- Compare one ranked candidate with multiple independently verified alternatives.
+- Explore a versioned registry with provenance and revocation after evaluating
+  applicability across task families.
