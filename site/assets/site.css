@@ -316,6 +316,8 @@ mark { background: var(--forest); color: var(--inset); font-weight: 700; }
 .results-chapter { background: var(--inset); }
 .results-spread { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); padding-block: 23px; border-block: 1px solid var(--rule); }
 .results-spread h3 { margin-bottom: 8px; }
+.earlier-results { border-top: 0; }
+#experiment-003b { scroll-margin-top: 24px; }
 .results-note { align-self: start; padding-left: 16px; border-left: 3px solid var(--forest); }
 .results-note p { max-width: 45ch; }
 .completion-marks { max-width: 480px; }

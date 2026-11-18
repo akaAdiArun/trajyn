@@ -327,7 +327,7 @@ def render_results() -> tuple[str, int, str]:
             f"<strong>{count} of {len(rows)}</strong>"
             f'<div class="marks" aria-hidden="true">{cells}</div></div>'
         )
-    charts = [render_experiment(STUDY_001, first, "Experiment 001 · Static transfer", "001")]
+    charts = []
     abstained = 0
     for mode, label in (
         ("grounded", "Granite, public grounding"),
@@ -350,6 +350,7 @@ def render_results() -> tuple[str, int, str]:
             raise ValueError("Experiment 002 no longer matches the published abstention summary")
         abstained += len(gated)
         charts.append(render_experiment(path, evaluation, f"Experiment 002 · {label}", "002"))
+    charts.append(render_experiment(STUDY_001, first, "Experiment 001 · Static transfer", "001"))
     return "".join(marks), abstained, "".join(charts)
 
 

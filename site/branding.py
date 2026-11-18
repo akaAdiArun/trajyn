@@ -1,5 +1,6 @@
-"""Render the 1200 × 630 TRAJYN receipt preview. Requires Pillow."""
+"""Render the website and GitHub TRAJYN receipt previews. Requires Pillow."""
 
+import argparse
 from pathlib import Path
 
 from build import STOPS
@@ -78,5 +79,42 @@ def make_social_preview(path: Path) -> None:
     image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS).save(path, optimize=True)
 
 
+def make_github_preview(path: Path) -> None:
+    width, height = 1280, 640
+    image = Image.new("RGB", scaled(width, height), PAPER)
+    draw = ImageDraw.Draw(image)
+
+    def text(x: int, y: int, label: str, size: int, face: str, fill: str = INK) -> None:
+        draw.text(scaled(x, y), label, fill, font(size, face), anchor="lt")
+
+    draw.line(scaled(64, 90, 1216, 90), FOREST, width=4 * SCALE)
+    text(62, 190, "TRAJYN", 110, "strong", FOREST)
+    text(65, 321, "Follow the receipt", 54, "display")
+
+    draw.rectangle(scaled(631, 139, 1224, 557), fill="#EAE4D6")
+    draw.rectangle(scaled(622, 130, 1215, 548), fill=INSET, outline=RULE, width=SCALE)
+    draw.line(scaled(622, 132, 1215, 132), FOREST, width=5 * SCALE)
+    text(650, 159, "RECORDED RUN · LOST DELIVERY", 22, "mono", FOREST)
+    for step, y, label, tag in (
+        (3, 219, "Send a replacement", "Receipt returned"),
+        (4, 374, "Close the case", "Receipt used"),
+    ):
+        draw.line(scaled(651, y, 1184, y), RULE, width=SCALE)
+        text(651, y + 23, f"{step:02}", 32, "mono", FOREST)
+        text(721, y + 20, label, 37, "display")
+        draw.rectangle(scaled(721, y + 74, 1076, y + 122), fill=FOREST)
+        text(740, y + 84, tag, 26, "strong", INSET)
+    draw.line(scaled(1076, 316, 1147, 316, 1147, 471, 1076, 471), FOREST, width=5 * SCALE)
+    draw.polygon([scaled(1076, 471), scaled(1094, 459), scaled(1094, 483)], fill=FOREST)
+    image.resize((width, height), Image.Resampling.LANCZOS).save(path, optimize=True)
+
+
 if __name__ == "__main__":
-    make_social_preview(Path(__file__).with_name("assets") / "social-preview.png")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--github", action="store_true", help="render the repository share image")
+    if parser.parse_args().github:
+        make_github_preview(
+            Path(__file__).resolve().parents[1] / "docs/assets/github-social-preview.png"
+        )
+    else:
+        make_social_preview(Path(__file__).with_name("assets") / "social-preview.png")
