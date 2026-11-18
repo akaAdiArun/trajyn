@@ -1,5 +1,8 @@
 # Experiment 003B — Compiled evidence at a delivery handoff
 
+The completed study and paired executions are recorded in
+[Experiment 003B results](EXPERIMENT_003B_RESULTS.md).
+
 Experiment 003B uses deterministic extraction from model-generated training
 traces. Experiment 003's three Qwen induction revisions ended without an
 accepted lesson and with zero Granite target attempts. Those results and all
