@@ -1,94 +1,47 @@
-<p align="center">
-  <img src="docs/assets/wordmark.png" alt="TRAJYN wordmark with cyan and violet execution paths" width="800">
-</p>
+# TRAJYN
 
-<h1 align="center">TRAJYN · The Experience Layer for AI Agents</h1>
+TRAJYN is a research project about helping one AI learn from another AI’s work.
+It records what the first AI tried, checks what actually worked, and keeps the
+useful steps for a future task.
 
-<p align="center"><strong>Experience is portable. Capability is earned.</strong></p>
+**Today:** a working prototype tested in a simulator. It doesn’t yet connect to
+Claude Code or Codex.
 
-<p align="center">
-  <a href="https://github.com/akaAdiArun/trajyn/actions/workflows/ci.yml"><img src="https://github.com/akaAdiArun/trajyn/actions/workflows/ci.yml/badge.svg?branch=main" alt="GitHub Actions CI"></a>
-  <a href="pyproject.toml"><img src="docs/assets/badge-python.svg" alt="Python 3.12 and newer"></a>
-  <a href="LICENSE"><img src="docs/assets/badge-license.svg" alt="Apache License 2.0"></a>
-  <a href="ROADMAP.md"><img src="docs/assets/badge-status.svg" alt="Experimental project status"></a>
-</p>
+<a name="see-trajyn-in-action"></a>
 
-<p align="center">
-  <a href="https://akaadiarun.github.io/trajyn/"><strong>Website</strong></a> ·
-  <a href="https://akaadiarun.github.io/trajyn/#replay">Interactive replay</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#experiments-and-results">Experiments</a> ·
-  <a href="docs/PROJECT_BRIEF.md">Documentation</a> ·
-  <a href="ROADMAP.md">Roadmap</a>
-</p>
+## Follow one real example
 
-TRAJYN is experimental infrastructure for turning a verified agent run into
-a portable procedure that another agent can try. It records what the first
-agent did, checks what actually changed, and packages the usable steps with
-their evidence and tool requirements.
+[![Four recorded steps from a lost-delivery case. A bracket connects the receipt returned when the AI sends a replacement to the same receipt it uses to close the case.](docs/assets/receipt-handoff.svg)](https://akaadiarun.github.io/trajyn/#replay)
 
-## Why TRAJYN?
+The AI could close the case because it had the receipt from sending the replacement.
 
-Agents repeatedly solve related tasks in separate sessions, tool environments,
-and model families. A transcript can show what happened on one task. To reuse
-that experience, a different agent still needs to identify which steps apply,
-where argument values come from, and what counts as success.
+[Replay the run](https://akaadiarun.github.io/trajyn/#replay) · [Read the archived trace](examples/local-pilot/action-first/source/source-0.jsonl)
 
-Suppose one agent resolves a lost delivery. TRAJYN can capture how it reads the
-case, gets the parcel and product from the carrier, and uses the remedy receipt
-to close the case. A second agent receives a procedure with those dependencies.
-It supplies identifiers from its own task. A tool-interface check can reject a
-warehouse procedure on a locker-only task.
+## Why that lesson might not apply
 
-## How it works
+In a separate test case, the primary carrier was unavailable and a backup
+carrier reported that the parcel had already been delivered. Fixed advice
+accompanied an ineligible replacement attempt, while the runs with withheld
+advice and with no advice both acknowledged delivery and closed the case.
+A similar-looking problem can need a different response.
+[Recorded comparison for seed 530](docs/EXPERIMENT_002_RESULTS.md#granite-with-public-grounding)
 
-![Animated pipeline from Agent A and tool execution through trajectory recording, state verification, induction, capsule compatibility, Agent B, and paired evaluation](docs/assets/pipeline.gif)
+<a name="experiments-and-results"></a>
 
-[Still diagram](docs/assets/pipeline.png) · [Evaluation protocol](docs/EVALUATION.md)
+## What the tests found
 
-The animation illustrates the data flow. Performance is measured separately
-through paired executions with the same target agent, tasks, tools, and budget.
+So far, we haven’t shown that passing along advice makes the next AI do better.
 
-## See TRAJYN in action
-
-![Actual verified Qwen3-8B trace on training seed 0. The four steps read the case, inspect the parcel, dispatch the replacement, and close the case. The capsule binds the dispatch parcel and product to observations 1 and 2.](docs/assets/verified-execution.png)
-
-The dispatch arguments point to steps 1 and 2 in the source trace. The capsule
-references that trace by content ID and records the supporting step indices.
-
-[Original JSONL trace](examples/local-pilot/action-first/source/source-0.jsonl) · [Capsules](examples/local-pilot/action-first/capsules.jsonl)
-
-## Architecture
-
-![TRAJYN architecture with source adapter and environment, action recorder, independent state verifier, induction and capsule, retrieval and interface checks, paired target execution, and a planned registry](docs/assets/architecture.png)
-
-The Python [agent protocol](src/trajyn/agent.py) separates model adapters from
-execution. The runner passes the public task, tool interfaces, and observations
-to the agent. The independent verifier reads resulting environment state.
-Replaying a source trajectory checks each recorded observation before induction.
-
-## Core concepts
-
-| Concept | Role |
+| Study | Recorded result |
 | --- | --- |
-| Trajectory | Ordered public tool calls, observations, model identity, and verification outcome |
-| Verified experience | A trajectory whose observable steps and final state can be replayed |
-| Capability capsule | A versioned procedure with live bindings, observation guards, tool requirements, and evidence |
-| Applicability and compatibility | Checks that the task and current tool interfaces can receive the procedure |
-| Negative transfer | A paired regression against the same agent without memory |
+| [Experiment 001](docs/EXPERIMENT_001_RESULTS.md) | **3 of 10** tasks completed without advice. **0 of 10** completed with the saved procedure. |
+| [Experiment 002](docs/EXPERIMENT_002_RESULTS.md) | The newer method **withheld advice in all 24 attempts** and matched the no-advice baseline. |
 
-## What works today
+[Website results and all conditions](https://akaadiarun.github.io/trajyn/#experiments)
 
-| Available | Status |
-| --- | --- |
-| Seeded tasks, state verification, JSONL replay | Implemented |
-| Evidence-grounded induction and compatibility checks | Implemented |
-| Public-context ranking over verified candidate traces | Implemented |
-| Offline and Ollama adapters, five-condition evaluation, CSV/JSON reports | Implemented |
-| Reliable cross-model improvement | Research question |
-| Capability registry, SDKs, and distributed exchange | Planned |
+<a name="quick-start"></a>
 
-## Quick start
+## Run it locally
 
 Use Python 3.12 or newer.
 
@@ -106,43 +59,35 @@ trajyn compare
 In PowerShell, activate with `.venv/Scripts/Activate.ps1`.
 
 The offline commands write trajectories and a paired report under `runs/`.
-The [local-model guide](docs/LOCAL_PILOT.md) describes the opt-in Ollama path.
+The [local-model guide](docs/LOCAL_PILOT.md) explains the opt-in Ollama workflow.
 
-## Experiments and results
+<a name="architecture"></a>
 
-![Experiment 001 verified completion for Granite 4 3B. No memory 3/10, raw trajectory 1/10, summary 1/10, capsule 0/10, irrelevant memory 0/10. Invalid calls were 62, 58, 76, 80, and 120.](docs/assets/outcomes.png)
+## How it works
 
-The preregistered study used Qwen3-8B as source and Granite 4 3B as target,
-with public argument grounding in every arm. Qwen verified **8/8** training
-tasks and yielded five capsules. Granite verified **3/10** with no memory
-and **0/10** with capsules. The capsule arm regressed on three paired tasks.
-The paired 95% interval ranged from **−60 to 0 percentage points**.
+A **trajectory** records the public actions, responses, and verified outcome of
+one run. A **capability capsule** stores a procedure with tool requirements and
+references to the observations it depends on. TRAJYN can check those requirements
+and withhold or withdraw the procedure if the new run diverges.
 
-[Protocol](docs/EXPERIMENT_001.md) · [Experiment 001 results](docs/EXPERIMENT_001_RESULTS.md) · [Calibration](docs/CALIBRATION.md)
+[Architecture](https://akaadiarun.github.io/trajyn/#architecture) ·
+[Agent protocol](src/trajyn/agent.py) · [Runtime](src/trajyn/runner.py) ·
+[Branch-aware transfer](docs/BRANCH_TRANSFER.md) · [Project charter](docs/PROJECT_BRIEF.md) ·
+[Saved procedures](examples/local-pilot/action-first/capsules.jsonl) · [Roadmap](ROADMAP.md)
 
-Experiment 002 completed **144 held-out trials** across Granite 4 3B and
-Ministral 3 3B with grounded and unaided tool arguments. The branch-aware
-arm abstained in all **24** of its trials and verified the same seeds as
-no memory in every run. It had **9 paired gains and 1 loss** against static
-capsule transfer across the four runs. The same six profiles recur in each
-run. [Protocol](docs/EXPERIMENT_002.md) · [Experiment 002 results](docs/EXPERIMENT_002_RESULTS.md) ·
-[Site charts](https://akaadiarun.github.io/trajyn/#experiments)
+<a name="contributing-and-license"></a>
 
-The earlier offline fixture run verified **8/8** in every arm. The earlier
-Llama 3.2 pilot verified **0/2** in each arm. Both records remain available.
-[Offline comparison](examples/offline/comparison.md) · [Earlier local pilot](docs/LOCAL_PILOT.md)
+## Research and license
 
-## Roadmap
+[Evaluation design](docs/EVALUATION.md) ·
+[Experiment 001 protocol](docs/EXPERIMENT_001.md) ·
+[Experiment 002 protocol](docs/EXPERIMENT_002.md) ·
+[Offline comparison](examples/offline/comparison.md)
 
-The [roadmap](ROADMAP.md) tracks work to measure activation with multiple
-verified alternatives, alongside future registry and SDK work. The
-[charter](docs/PROJECT_BRIEF.md) defines the research questions and
-experimental controls.
-
-## Contributing and license
+### Contributing
 
 Run `ruff check .`, `ruff format --check .`, `mypy`, and `pytest` before opening
-a pull request.
-The README graphics have a [local renderer](docs/assets/README.md).
+a pull request. The [graphics renderer](docs/assets/README.md) documents how to
+reproduce the earlier experiment figures.
 
 TRAJYN is open source under the [Apache License 2.0](LICENSE).

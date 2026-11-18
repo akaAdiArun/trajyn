@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 440" role="img" aria-labelledby="title desc">
+  <title id="title">Follow the receipt</title>
+  <desc id="desc">Four recorded actions resolve a lost delivery. A bracket connects the receipt returned at step 03 to the same receipt used to close the case at step 04.</desc>
+  <rect width="680" height="440" fill="#F6F2E7"/>
+  <rect x="16" y="16" width="648" height="408" fill="#FFFCF4" stroke="#CBC5B7"/>
+  <path d="M16 17H664" stroke="#194638" stroke-width="3"/>
+  <text x="34" y="43" fill="#194638" font-family="monospace" font-size="16">RECORDED RUN · SIMULATED DELIVERY SYSTEM</text>
+  <text x="34" y="79" fill="#1D2520" font-family="Georgia, serif" font-size="34">Case 01 / Lost delivery</text>
+  <path d="M34 93H646M56 168H646M56 241H646M56 314H646" fill="none" stroke="#CBC5B7"/>
+  <path d="M34 388H646" stroke="#CBC5B7" stroke-dasharray="5 5"/>
+  <path d="M37 130V350M37 130H51M37 204H51M37 277H51M37 350H51" stroke="#194638" stroke-width="2" fill="none"/>
+  <g fill="#194638" font-family="monospace" font-size="35">
+    <text x="61" y="142">01</text>
+    <text x="61" y="216">02</text>
+    <text x="61" y="289">03</text>
+    <text x="61" y="362">04</text>
+  </g>
+  <g fill="#1D2520" font-family="system-ui, sans-serif" font-size="28" font-weight="650">
+    <text x="122" y="130">Read the case</text>
+    <text x="122" y="204">Check the carrier</text>
+    <text x="122" y="277">Send a replacement</text>
+    <text x="122" y="350">Close the case</text>
+  </g>
+  <g fill="#535D53" font-family="system-ui, sans-serif" font-size="18">
+    <text x="123" y="153">Parcel reported missing</text>
+    <text x="123" y="227">Parcel confirmed lost</text>
+    <text x="123" y="300">Replacement accepted</text>
+    <text x="123" y="373">Same receipt closes the ticket</text>
+  </g>
+  <path d="M625 277H644V350H625" stroke="#194638" stroke-width="4" fill="none"/>
+  <g fill="#194638">
+    <rect x="449" y="260" width="177" height="34"/>
+    <rect x="449" y="333" width="177" height="34"/>
+  </g>
+  <g text-anchor="middle" fill="#FFFCF4" font-family="monospace" font-size="18">
+    <text x="537" y="284">Receipt returned</text>
+    <text x="537" y="357">Receipt used</text>
+  </g>
+  <text x="35" y="411" fill="#194638" font-family="system-ui, sans-serif" font-size="18" font-weight="650">Verified outcome · Case closed</text>
+</svg>
