@@ -3,6 +3,7 @@
 import argparse
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -240,7 +241,56 @@ def scripted_contrasts(root: Path) -> tuple[Trajectory, ...]:
     return tuple(result)
 
 
-def prepare(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str, object]:
+def reuse_sources(root: Path, archive: Path, source: LocalModel, target: LocalModel) -> None:
+    """Replay and identity-check a complete source corpus before copying its records."""
+    from trajyn.lesson_report import replay_attempt
+
+    if root.resolve().is_relative_to(archive.resolve()):
+        raise ValueError("retry output must be outside the original archive")
+    metadata = read_json(archive / "models.json")
+    if metadata["source"] != read_json_value(source) or metadata["target"] != read_json_value(
+        target
+    ):
+        raise ValueError("source archive model identities differ from installed models")
+    old_design = read_json(archive / "design.json")
+    new_design = read_json_value(design())
+    if {k: v for k, v in old_design.items() if k != "induction_revision"} != {
+        k: v for k, v in new_design.items() if k != "induction_revision"
+    }:
+        raise ValueError("source archive uses a different study design")
+    checked = []
+    for seed in TRAIN_SEEDS:
+        folder = completed(archive / "sources" / str(seed))
+        if folder is None:
+            raise ValueError(f"source archive lacks a complete attempt for training seed {seed}")
+        task = generate_delivery_task(seed, Split.TRAIN, workflow=DELIVERY_V3)
+        replay_attempt(folder, task, source)
+        trace = read_trajectory(folder / "trace.jsonl")
+        if trace.agent != AgentIdentity("ollama", source.name, source.digest):
+            raise ValueError(f"source trajectory model identity changed for seed {seed}")
+        checked.append((folder, folder.relative_to(archive), trace.trajectory_id))
+    for folder, relative, _ in checked:
+        destination = root / relative
+        if destination.exists():
+            if artifact_hashes(destination) != artifact_hashes(folder):
+                raise ValueError("retry source records differ from their original archive")
+        else:
+            shutil.copytree(folder, destination)
+    save_json(
+        root / "source-import.json",
+        {
+            "source_archive": archive.as_posix(),
+            "source_model": source,
+            "target_model": target,
+            "attempts": {relative.as_posix(): identity for _, relative, identity in checked},
+            "files": artifact_hashes(archive / "sources"),
+        },
+    )
+
+
+def prepare(
+    root: Path, connection: OllamaConnection, freeze: Path, source_archive: Path | None = None
+) -> dict[str, object]:
     deadline = monotonic() + 4 * 60 * 60
     if (root / "manifest.json").exists():
         return {
@@ -269,6 +319,8 @@ def prepare(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str,
             },
         )
         return cast(dict[str, object], read_json(root / "status.json"))
+    if source_archive is not None:
+        reuse_sources(root, source_archive, source, target)
     for seed in TRAIN_SEEDS:
         if monotonic() >= deadline or len(list((root / "sources").glob("*/try-*"))) >= 14:
             break
@@ -492,7 +544,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=Path("runs/experiment-003"))
     parser.add_argument("--freeze", type=Path, default=DEFAULT_FREEZE)
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    parser.add_argument(
+        "--source-archive",
+        type=Path,
+        help="reuse a complete, independently replayed training source archive",
+    )
     args = parser.parse_args(argv)
+    if args.source_archive is not None and args.command != "prepare":
+        parser.error("--source-archive is supported by prepare")
     try:
         with study_lock(args.output):
             if args.command == "demo":
@@ -503,7 +562,10 @@ def main(argv: list[str] | None = None) -> int:
                 result = replay_study(args.output, args.freeze)
             elif args.command == "prepare":
                 result = prepare(
-                    args.output, OllamaConnection(args.ollama_url, OPTIONS), args.freeze
+                    args.output,
+                    OllamaConnection(args.ollama_url, OPTIONS),
+                    args.freeze,
+                    args.source_archive,
                 )
             else:
                 result = run(args.output, OllamaConnection(args.ollama_url, OPTIONS), args.freeze)

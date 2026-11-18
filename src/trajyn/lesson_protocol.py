@@ -20,7 +20,7 @@ TEST_SEEDS = tuple(range(1008, 1032))
 ARMS = ("A", "F", "G", "G-static")
 OPTIONS = InferenceOptions(timeout_seconds=75, tool_mode="json", grounding="public")
 MAX_STEPS = 10
-INDUCTION_REVISION = 1
+INDUCTION_REVISION = 2
 RENDERER_REVISION = 1
 CREATED_AT = "2026-11-18T00:00:00+00:00"
 

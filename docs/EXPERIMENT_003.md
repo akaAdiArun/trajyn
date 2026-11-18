@@ -128,6 +128,36 @@ It makes no Ollama requests.
 
 ## Operator commands
 
+### Induction revision 2
+
+The first live preparation collected twelve Qwen source attempts with ten
+verified completions. All four induction replies supplied an object in the
+`evidence` field and failed validation. That archive stays at
+`runs/experiment-003` with its original replies and rejection records.
+
+Revision 2 passes a JSON Schema as Ollama's `format` value. It requires all
+lesson fields, structured binding objects, and a nonempty array of citation
+objects with string trajectory IDs and positive integer step references.
+The schema specifies shapes. The learner must infer the operations, fields,
+values, and citations from the same training contrasts. The provenance and
+development validators still decide acceptance. Existing revision 1 replies
+retain their original format and validation behavior during offline replay.
+
+The retry uses a fresh archive and four fresh induction calls at most. It
+reuses all twelve source attempts only after checking their sealed files,
+reconstructing their requests and executions offline, and checking source and
+target model identities against the installed digests. It copies source
+records with an import provenance record. Rejected proposals remain in the
+first archive. The held-out cases, profiles, split, arm order, inference limits,
+renderer, selection rule, and development validation are unchanged.
+
+```sh
+python -m trajyn.lesson_study prepare --output runs/experiment-003-r2 --source-archive runs/experiment-003
+```
+
+Preparation generates a proposed freeze only if a lesson passes. This retry
+stops after preparation for review of the learned lesson and its citations.
+
 Run from the repository root after installing `.[dev]` in the local environment.
 PowerShell can invoke these through `.\.venv\Scripts\python.exe`.
 

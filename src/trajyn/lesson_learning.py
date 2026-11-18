@@ -33,7 +33,51 @@ def tool_contracts(sources: tuple[Trajectory, ...]) -> tuple[ToolSpec, ...]:
     return tuple(tools[name] for name in sorted(tools))
 
 
-def induction_messages(sources: tuple[Trajectory, ...]) -> list[dict[str, object]]:
+def induction_schema() -> dict[str, object]:
+    """Constrain record shapes without supplying a lesson or citation values."""
+    text = {"type": "string", "minLength": 1}
+    names = {"type": "array", "minItems": 1, "items": text}
+    binding = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {field: text for field in ("parameter", "origin", "field")},
+        "required": ["parameter", "origin", "field"],
+    }
+    citation = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "trajectory_id": text,
+            "producer_step": {"type": "integer", "minimum": 1},
+            "consumer_step": {"type": "integer", "minimum": 1},
+        },
+        "required": ["trajectory_id", "producer_step", "consumer_step"],
+    }
+    properties = {
+        "version": {"type": "integer", "minimum": 1},
+        "workflow": text,
+        "producer_tools": names,
+        "consumer_tool": text,
+        "output_field": text,
+        "success_codes": names,
+        "activation": names,
+        "exclusions": names,
+        "bindings": {"type": "array", "minItems": 1, "items": binding},
+        "evidence": {"type": "array", "minItems": 1, "items": citation},
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": properties,
+        "required": list(properties),
+    }
+
+
+def induction_messages(
+    sources: tuple[Trajectory, ...], *, revision: int = INDUCTION_REVISION
+) -> list[dict[str, object]]:
+    if revision not in (1, 2):
+        raise ValueError("unsupported induction revision")
     for source in sources:
         replay_trajectory(source)
         if source.task.split != Split.TRAIN:
@@ -89,15 +133,23 @@ def induction_messages(sources: tuple[Trajectory, ...]) -> list[dict[str, object
                 "and public tools. Exclude instance IDs from reusable fields. Return a JSON object "
                 "with version, workflow, producer_tools (sorted), consumer_tool, output_field, "
                 "success_codes (sorted), activation, exclusions, "
-                "bindings (parameter, origin, field), "
-                "and evidence (trajectory_id, producer_step, consumer_step). No free prose or code."
+                + (
+                    "bindings (parameter, origin, field), "
+                    "and evidence (trajectory_id, producer_step, consumer_step). "
+                    "No free prose or code."
+                    if revision == 1
+                    else "bindings as an array of objects with parameter, origin, and field. "
+                    "evidence must be a nonempty array of citation objects with trajectory_id, "
+                    "producer_step, and consumer_step. Cite the action producing the value and "
+                    "a strictly later action consuming it. No free prose or code."
+                )
             ),
         },
         {
             "role": "user",
             "content": encode_json(
                 {
-                    "revision": INDUCTION_REVISION,
+                    "revision": revision,
                     "vocabulary": vocabulary,
                     "public_tool_contracts": tool_contracts(sources),
                     "contrasts": contrasts,
@@ -180,7 +232,7 @@ def learn(
             payload: dict[str, object] = {
                 "model": model.name,
                 "messages": messages,
-                "format": "json",
+                "format": induction_schema(),
                 "stream": False,
                 "keep_alive": "3m",
                 "options": {
@@ -234,8 +286,10 @@ def verify_learning(
         read_trajectory(p) for p in sorted((root / "scripted-counterexamples").glob("*.jsonl"))
     )
     contrasts = sources + counterexamples
-    if encode_json(read_json(root / "induction-input.json")) != encode_json(
-        induction_messages(contrasts)
+    archived_messages = read_json(root / "induction-input.json")
+    revision = json.loads(archived_messages[1]["content"])["revision"]
+    if encode_json(archived_messages) != encode_json(
+        induction_messages(contrasts, revision=revision)
     ):
         raise ValueError("learner input changed or contains non-training records")
     selected = None
@@ -247,6 +301,8 @@ def verify_learning(
             raise ValueError("proposals continued after deterministic selection")
         record = read_json(path)
         raw = read_json(root / "induction-calls" / str(call) / "001.json")
+        if raw["payload"]["format"] != ("json" if revision == 1 else induction_schema()):
+            raise ValueError("induction response format differs from its revision")
         if raw["payload"]["messages"] != read_json(root / "induction-input.json"):
             raise ValueError("submitted induction prompt differs from archived input")
         if raw["status"] == "responded":

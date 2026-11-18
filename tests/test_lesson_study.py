@@ -9,6 +9,7 @@ import pytest
 
 from trajyn.agent import AgentContext
 from trajyn.delivery_agent import DeliveryReferenceAgent
+from trajyn.lesson_learning import induction_schema
 from trajyn.lesson_protocol import OPTIONS, artifact_hashes, design, read_json, save_json
 from trajyn.lesson_report import replay_attempt, replay_demo, replay_study
 from trajyn.lesson_study import (
@@ -18,6 +19,7 @@ from trajyn.lesson_study import (
     main,
     next_attempt,
     prepare,
+    reuse_sources,
     run,
     study_lock,
 )
@@ -43,7 +45,8 @@ def fixture_api(
         return {"version": "deterministic-test-double"}
     assert payload is not None and path == "/api/chat"
     messages: Any = payload["messages"]
-    if payload["format"] == "json":
+    if isinstance(payload["format"], dict) and "evidence" in payload["format"]["properties"]:
+        assert payload["format"] == induction_schema()
         # A deterministic TEST learner inspects the provided contrasts. This test
         # supplies no evidence for a real Qwen learning or transfer result.
         from trajyn.lesson import Activation, Exclusion
@@ -179,7 +182,7 @@ def test_rejected_induction_stops_before_targets_and_all_proposals_replay(
     def bad_learner(
         self: OllamaConnection, path: str, payload: dict[str, object] | None = None
     ) -> dict[str, object]:
-        if payload is not None and payload.get("format") == "json":
+        if payload is not None and payload.get("format") == induction_schema():
             return {"message": {"content": '{"instruction":"hand authored text"}'}}
         return fixture_api(self, path, payload)
 
@@ -200,6 +203,52 @@ def test_rejected_induction_stops_before_targets_and_all_proposals_replay(
     save_json(root / "validations/1.json", record)
     with pytest.raises(ValueError, match="rejection reason changed"):
         replay_study(root, tmp_path / "freeze.json")
+
+
+def test_retry_reuses_verified_sources_without_source_inference_or_old_proposals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def first_attempt(
+        self: OllamaConnection, path: str, payload: dict[str, object] | None = None
+    ) -> dict[str, object]:
+        if payload is not None and payload.get("format") == induction_schema():
+            return {"message": {"content": '{"evidence":{}}'}}
+        return fixture_api(self, path, payload)
+
+    monkeypatch.setattr(OllamaConnection, "api", first_attempt)
+    connection = OllamaConnection("http://localhost", OPTIONS)
+    original, retry = tmp_path / "first", tmp_path / "retry"
+    assert prepare(original, connection, tmp_path / "first-freeze.json")["status"] == (
+        "no_valid_learned_lesson"
+    )
+    old_design = read_json(original / "design.json")
+    old_design["induction_revision"] = 1
+    save_json(original / "design.json", old_design)
+    before = artifact_hashes(original)
+    calls = []
+
+    def induction_only(
+        self: OllamaConnection, path: str, payload: dict[str, object] | None = None
+    ) -> dict[str, object]:
+        if path == "/api/chat":
+            assert payload is not None and payload["format"] == induction_schema()
+            calls.append(payload)
+        return fixture_api(self, path, payload)
+
+    monkeypatch.setattr(OllamaConnection, "api", induction_only)
+    status = prepare(retry, connection, tmp_path / "retry-freeze.json", original)
+    assert status["status"] == "ready_to_freeze"
+    assert len(calls) == 1
+    assert artifact_hashes(original) == before
+    assert artifact_hashes(original / "sources") == artifact_hashes(retry / "sources")
+    assert len(list((retry / "proposals").glob("*.json"))) == 1
+    assert read_json(retry / "source-import.json")["attempts"]
+    metadata = read_json(original / "models.json")
+    source = LocalModel(**{**metadata["source"], "digest": "c" * 64})
+    with pytest.raises(ValueError, match="model identities differ"):
+        reuse_sources(tmp_path / "bad-retry", original, source, LocalModel(**metadata["target"]))
+    assert not (tmp_path / "bad-retry" / "sources").exists()
 
 
 def test_infrastructure_failure_is_sealed_incomplete_and_replayable(

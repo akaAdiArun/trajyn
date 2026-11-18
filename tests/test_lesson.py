@@ -15,7 +15,7 @@ from trajyn.lesson import (
     render_hint,
     validate_lesson,
 )
-from trajyn.lesson_learning import induction_messages
+from trajyn.lesson_learning import induction_messages, induction_schema
 from trajyn.lesson_protocol import DEV_SEEDS, MAX_STEPS, TEST_SEEDS, TRAIN_SEEDS
 from trajyn.lesson_study import fixture_lesson, read_json_value
 from trajyn.models import (
@@ -107,6 +107,34 @@ def test_learning_input_contains_only_training_contrasts_and_no_completed_rule(
     assert "validation" not in encode_json(messages)
     with pytest.raises(ValueError, match="training only"):
         induction_messages((reference(DEV_SEEDS[0], Split.VALIDATION),))
+
+
+def test_induction_schema_requires_citation_array_without_supplying_lesson_values() -> None:
+    schema = read_json_value(induction_schema())
+    properties = schema["properties"]
+    assert set(schema["required"]) == set(properties)
+    assert schema["additionalProperties"] is False
+    citation_array = properties["evidence"]
+    assert citation_array["type"] == "array" and citation_array["minItems"] == 1
+    citation = citation_array["items"]
+    assert citation["type"] == "object" and citation["additionalProperties"] is False
+    assert set(citation["required"]) == {"trajectory_id", "producer_step", "consumer_step"}
+    assert citation["properties"]["producer_step"] == {"type": "integer", "minimum": 1}
+    assert citation["properties"]["consumer_step"] == {"type": "integer", "minimum": 1}
+    assert properties["bindings"]["type"] == "array"
+    assert set(properties["bindings"]["items"]["required"]) == {"parameter", "origin", "field"}
+    encoded = encode_json(schema)
+    for value in ("ship_replacement", "locker_replacement", "close_case", "receipt_id", "sha256:"):
+        assert value not in encoded
+
+
+def test_object_evidence_is_rejected_without_coercion(lesson: Lesson) -> None:
+    proposal = read_json_value(lesson)
+    proposal["evidence"] = proposal["evidence"][0]
+    original = encode_json(proposal)
+    with pytest.raises(ValueError, match="invalid lesson"):
+        decode_lesson(proposal, lesson.schemas)
+    assert encode_json(proposal) == original
 
 
 def test_lookups_can_be_reordered_or_repeated_without_prefix_matching(lesson: Lesson) -> None:
