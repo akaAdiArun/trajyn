@@ -1,25 +1,26 @@
-"""Render the TRAJYN social-preview card. Requires Pillow."""
+"""Render the 1200 × 630 TRAJYN receipt preview. Requires Pillow."""
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from build import STOPS
+from PIL import Image, ImageDraw, ImageFont
 
-WIDTH, HEIGHT, SCALE = 1280, 640, 2
-CYAN = "#60e7ec"
-VIOLET = "#a594ff"
-WHITE = "#f2f5ff"
-MUTED = "#aeb8d2"
+WIDTH, HEIGHT, SCALE = 1200, 630, 2
+PAPER = "#F6F2E7"
+INSET = "#FFFCF4"
+INK = "#1D2520"
+MUTED = "#535D53"
+RULE = "#CBC5B7"
+FOREST = "#194638"
 
 
-def font(
-    size: int, *, bold: bool = False, mono: bool = False
-) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    if mono:
-        windows, portable = "consola.ttf", "DejaVuSansMono.ttf"
-    elif bold:
-        windows, portable = "segoeuib.ttf", "DejaVuSans-Bold.ttf"
-    else:
-        windows, portable = "segoeui.ttf", "DejaVuSans.ttf"
+def font(size: int, face: str) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    windows, portable = {
+        "display": ("georgia.ttf", "DejaVuSerif.ttf"),
+        "body": ("segoeui.ttf", "DejaVuSans.ttf"),
+        "strong": ("segoeuib.ttf", "DejaVuSans-Bold.ttf"),
+        "mono": ("consola.ttf", "DejaVuSansMono.ttf"),
+    }[face]
     for candidate in (str(Path("C:/Windows/Fonts") / windows), portable):
         try:
             return ImageFont.truetype(candidate, size * SCALE)
@@ -28,102 +29,52 @@ def font(
     return ImageFont.load_default(size * SCALE)
 
 
-def coordinates(*values: int) -> tuple[int, ...]:
+def scaled(*values: int) -> tuple[int, ...]:
     return tuple(value * SCALE for value in values)
 
 
-def point_list(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
-    return [(x * SCALE, y * SCALE) for x, y in points]
-
-
-def halo(image: Image.Image, bounds: tuple[int, int, int, int], color: str) -> None:
-    tint = Image.new("RGB", image.size, color)
-    mask = Image.new("L", image.size)
-    ImageDraw.Draw(mask).ellipse(coordinates(*bounds), fill=67)
-    image.paste(tint, mask=mask.filter(ImageFilter.GaussianBlur(103 * SCALE)))
-
-
 def make_social_preview(path: Path) -> None:
-    image = Image.new("RGB", (WIDTH * SCALE, HEIGHT * SCALE), "#090d17")
-    halo(image, (698, 28, 1201, 590), "#413790")
-    halo(image, (712, 245, 1006, 457), "#175b6a")
+    image = Image.new("RGB", (WIDTH * SCALE, HEIGHT * SCALE), PAPER)
     draw = ImageDraw.Draw(image)
-    for y in range(52, 613, 24):
-        for x in range(52, 1250, 24):
-            draw.ellipse(coordinates(x, y, x + 1, y + 1), fill="#253047")
-    draw.rounded_rectangle(
-        coordinates(30, 30, 1250, 610), radius=24 * SCALE, outline="#2b3650", width=SCALE
-    )
 
-    draw.rounded_rectangle(
-        coordinates(87, 88, 174, 175),
-        radius=21 * SCALE,
-        fill="#131c30",
-        outline="#566b9f",
-        width=SCALE,
-    )
-    draw.line(point_list([(107, 116), (153, 116), (130, 139), (130, 154)]), CYAN, 5 * SCALE)
-    draw.line(point_list([(113, 141), (131, 123), (146, 123)]), VIOLET, 3 * SCALE)
-    for x, y in ((107, 116), (153, 116), (130, 154)):
-        draw.ellipse(coordinates(x - 3, y - 3, x + 3, y + 3), WHITE)
-    draw.text((79 * SCALE, 198 * SCALE), "TRAJYN", WHITE, font(121, bold=True), anchor="lt")
-    for y, line in ((349, "The Experience Layer"), (405, "for AI Agents")):
-        draw.text((87 * SCALE, y * SCALE), line, MUTED, font(47), anchor="lt")
-    draw.text(
-        (87 * SCALE, 550 * SCALE),
-        "EXPERIMENTAL  /  OPEN SOURCE",
-        CYAN,
-        font(17, mono=True),
-        anchor="lt",
-    )
+    def text(x: int, y: int, label: str, size: int, face: str, fill: str = INK) -> None:
+        draw.text(scaled(x, y), label, fill, font(size, face), anchor="lt")
 
-    for offset, color in ((-18, "#28616f"), (0, "#4896a5"), (18, "#334f7c")):
-        incoming = [
-            (655, 320 + offset),
-            (701, 320 + offset),
-            (748, 273 + offset),
-            (805, 273 + offset),
-        ]
-        draw.line(point_list(incoming), color, 2 * SCALE, joint="curve")
-    for offset, color in ((-16, "#4b4779"), (0, "#8a77d0"), (16, "#514782")):
-        outgoing = [
-            (1084, 315 + offset),
-            (1110, 315 + offset),
-            (1146, 279 + offset),
-            (1192, 279 + offset),
-        ]
-        draw.line(point_list(outgoing), color, 2 * SCALE, joint="curve")
+    def rule(*points: int, fill: str = RULE, width: int = 1) -> None:
+        draw.line(scaled(*points), fill=fill, width=width * SCALE)
 
-    faces = [
-        ([(802, 235), (943, 314), (943, 458), (802, 377)], "#162d42", "#60e7ec"),
-        ([(943, 314), (1085, 235), (1085, 377), (943, 458)], "#242345", "#a594ff"),
-        ([(802, 235), (943, 155), (1085, 235), (943, 314)], "#222641", "#acaff7"),
-    ]
-    for points, base, edge in faces:
-        draw.polygon(point_list(points), fill=base)
-        draw.line(point_list([*points, points[0]]), edge, 2 * SCALE, joint="curve")
-    for points, color in (
-        ([(832, 235), (943, 172), (1055, 235), (943, 299), (832, 235)], "#53628f"),
-        ([(852, 235), (943, 184), (1035, 235), (943, 287), (852, 235)], "#46577f"),
-        ([(866, 239), (944, 194), (1020, 237)], CYAN),
-        ([(942, 278), (944, 243), (986, 219)], VIOLET),
-        ([(1020, 237), (968, 268), (966, 280)], CYAN),
-        ([(828, 290), (915, 340)], "#4b95ae"),
-        ([(828, 307), (899, 348)], "#4b95ae"),
-        ([(828, 324), (883, 356)], "#4b95ae"),
-        ([(971, 340), (1059, 290)], "#8076bb"),
-        ([(971, 357), (1059, 307)], "#8076bb"),
-        ([(971, 374), (1059, 324)], "#8076bb"),
+    text(63, 86, "TRAJYN", 29, "strong")
+    rule(64, 135, 532, 135)
+    for y, line in zip(
+        (168, 244, 320), ("One AI fixed it.", "What can the", "next one reuse?"), strict=True
     ):
-        draw.line(point_list(points), color, 2 * SCALE, joint="curve")
-    for x, y, color in (
-        (655, 320, CYAN),
-        (802, 273, CYAN),
-        (1085, 315, VIOLET),
-        (1192, 279, VIOLET),
-    ):
-        draw.ellipse(coordinates(x - 4, y - 4, x + 4, y + 4), color)
+        text(62, y, line, 65, "display")
+    text(65, 444, "Follow the receipt →", 27, "strong", FOREST)
 
+    draw.rectangle(scaled(632, 67, 1143, 572), fill="#EAE4D6")
+    draw.rectangle(scaled(624, 58, 1135, 563), fill=INSET, outline=RULE, width=SCALE)
+    rule(624, 59, 1135, 59, fill=FOREST, width=4)
+    text(651, 87, "RECORDED RUN · SIMULATED DELIVERY SYSTEM", 16, "mono", FOREST)
+    text(650, 120, "Case 01 / Lost delivery", 38, "display")
+    rule(651, 173, 1106, 173)
+    centers = (214, 295, 376, 457)
+    rule(653, centers[0], 653, centers[-1], fill=FOREST, width=2)
+    for index, (stop, center) in enumerate(zip(STOPS, centers, strict=True), 1):
+        rule(653, center, 665, center, fill=FOREST, width=2)
+        text(673, center - 13, f"{index:02}", 30, "mono", FOREST)
+        text(726, center - 18, stop.label, 22, "strong")
+        fact = stop.result
+        if stop.tag == "Receipt returned":
+            fact = "Replacement accepted"
+        elif stop.tag == "Receipt used":
+            fact = "Same receipt closes the ticket"
+        text(726, center + 10, fact, 15, "body", MUTED)
+        if stop.tag:
+            draw.rectangle(scaled(956, center - 13, 1098, center + 13), fill=FOREST)
+            draw.text(scaled(1027, center), stop.tag, INSET, font(14, "mono"), anchor="mm")
+        rule(673, center + 39, 1106, center + 39)
+    rule(1098, 376, 1110, 376, 1110, 457, 1098, 457, fill=FOREST, width=3)
+    text(653, 521, "Verified outcome · Case closed", 20, "strong", FOREST)
     image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS).save(path, optimize=True)
 
 

@@ -1,34 +1,43 @@
 const replay = document.querySelector("[data-replay]");
 if (replay) {
-  const steps = [...replay.querySelectorAll("[data-step]")];
-  const links = [...replay.querySelectorAll(".replay-index a")];
-  const previous = replay.querySelector("[data-prev]");
-  const next = replay.querySelector("[data-next]");
-  const position = replay.querySelector("[data-position]");
-  let index = 0;
+  const links = [...replay.querySelectorAll("nav a")];
+  const panels = new Map([...replay.querySelectorAll("[data-evidence]")]
+    .map(panel => ["#" + panel.id, panel]));
+  const firstAction = "#trace-2";
 
-  function select(i) {
-    index = Math.min(Math.max(i, 0), steps.length - 1);
-    steps.forEach((step, n) => { step.hidden = n !== index; });
-    links.forEach((link, n) => {
-      if (n === index) link.setAttribute("aria-current", "step");
-      else link.removeAttribute("aria-current");
-    });
-    previous.disabled = index === 0;
-    next.disabled = index === steps.length - 1;
-    position.textContent = `Step ${index + 1} of ${steps.length}`;
+  function show(hash) {
+    if (!panels.has(hash)) return;
+    for (const [id, panel] of panels) panel.hidden = id !== hash;
+    for (const link of links) {
+      if (link.hash === hash) {
+        link.setAttribute("aria-current", link.closest("ol") ? "step" : "true");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    }
   }
 
-  const onHash = () => {
-    const match = steps.findIndex(step => `#${step.id}` === location.hash);
-    if (match !== -1) select(match);
-    else if (location.hash === "#replay") select(0);
-  };
-  previous.addEventListener("click", () => select(index - 1));
-  next.addEventListener("click", () => select(index + 1));
-  links.forEach((link, i) => link.addEventListener("click", () => select(i)));
-  addEventListener("hashchange", onHash);
-  replay.querySelector(".replay-controls").hidden = false;
-  select(0);
-  onHash();
+  for (const link of links) {
+    link.addEventListener("click", event => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      if (location.hash !== link.hash) history.pushState(null, "", link.hash);
+      show(link.hash);
+    });
+  }
+
+  function restore() {
+    if (panels.has(location.hash)) show(location.hash);
+    else if (location.hash === "#replay" || !location.hash) show(firstAction);
+  }
+
+  addEventListener("hashchange", restore);
+  addEventListener("popstate", restore);
+  show(panels.has(location.hash) ? location.hash : firstAction);
+
+  if (panels.has(location.hash)) {
+    requestAnimationFrame(() => document.getElementById("replay").scrollIntoView());
+  }
 }
