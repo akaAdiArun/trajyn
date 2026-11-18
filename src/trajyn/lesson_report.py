@@ -7,7 +7,7 @@ from typing import Any, cast
 from trajyn.agent import AgentContext
 from trajyn.benchmark import DELIVERY_V3, generate_delivery_task
 from trajyn.capability import read_capsules
-from trajyn.lesson import EvidenceTransfer, evidence_gate, read_lesson, validate_lesson
+from trajyn.lesson import EvidenceTransfer, Lesson, evidence_gate, read_lesson, validate_lesson
 from trajyn.lesson_learning import RecordedConnection, tool_contracts, verify_learning
 from trajyn.lesson_protocol import (
     ARMS,
@@ -163,7 +163,7 @@ def paired(
     }
 
 
-def replay_study(root: Path, freeze: Path) -> dict[str, object]:
+def replay_study(root: Path, freeze: Path, *, require_commit: bool = True) -> dict[str, object]:
     if (root / "demo.json").exists():
         return replay_demo(root)
     if not (root / "manifest.json").exists():
@@ -183,13 +183,19 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
             "reference_replays": len(references),
             "live": read_json(root / "status.json") if (root / "status.json").exists() else None,
         }
-    manifest = verify_frozen(root, freeze)
+    manifest = verify_frozen(root, freeze, require_commit=require_commit)
     sources = source_pool(root)
     lesson = read_lesson(root / "lesson.json", tool_contracts(sources))
     if lesson.lesson_id != manifest["lesson_id"]:
         raise ValueError("lesson differs from frozen selection")
     validate_lesson(lesson, sources, development_pool(root))
-    selected_lesson = verify_learning(root, sources, development_pool(root))
+    selected_lesson: Lesson | None
+    if manifest.get("experiment") == "003B":
+        from trajyn.lesson_compiler import verify_compilation
+
+        selected_lesson = verify_compilation(root, sources, development_pool(root))
+    else:
+        selected_lesson = verify_learning(root, sources, development_pool(root))
     if selected_lesson != lesson:
         raise ValueError("lesson differs from deterministic proposal selection")
     for name, identity in manifest["references"].items():
@@ -217,6 +223,8 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
     rows: dict[tuple[int, str], dict[str, Any]] = {}
     incomplete: list[dict[str, object]] = []
     gate_counts: dict[str, Counter[str]] = {arm: Counter() for arm in ARMS}
+    post_receipt_rows: dict[str, list[dict[str, Any]]] = {arm: [] for arm in ARMS}
+    diagnostics = []
     for case in manifest["design"]["cases"]:
         seed = case["seed"]
         task = generate_delivery_task(seed, Split.TEST, workflow=DELIVERY_V3)
@@ -259,6 +267,20 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
             row = read_json(chosen / "result.json")
             rows[seed, arm] = row
             trace = read_trajectory(chosen / "trace.jsonl")
+            if manifest.get("experiment") == "003B":
+                from trajyn.lesson_diagnostics import post_receipt
+
+                diagnostic = post_receipt(lesson, trace, row)
+                post_receipt_rows[arm].append(diagnostic)
+                diagnostics.append(
+                    {
+                        "seed": seed,
+                        "arm": arm,
+                        "type": case["type"],
+                        "trace": (chosen / "trace.jsonl").relative_to(root).as_posix(),
+                        **diagnostic,
+                    }
+                )
             tools = environment_for(task).tools
             eligible = 0
             for turn in row["turns"]:
@@ -360,6 +382,23 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
         "caution": "Shared synthetic profile families. Intervals describe fixed tasks. "
         "An action following a hint is observational and does not establish reliance.",
     }
+    if manifest.get("experiment") == "003B":
+        from trajyn.lesson_diagnostics import paired_efficiency, summarize_post_receipt
+
+        document.update(
+            experiment="003B",
+            post_receipt=diagnostics,
+            post_receipt_summary={
+                arm: summarize_post_receipt(values) for arm, values in post_receipt_rows.items()
+            },
+            paired_efficiency={
+                group: {
+                    f"G_vs_{arm}": paired_efficiency(rows, seeds, arm)
+                    for arm in ("A", "G-static", "F")
+                }
+                for group, seeds in groups.items()
+            },
+        )
     if (root / "report.json").exists():
         previous = read_json(root / "report.json")
         if previous.get("evidence_id") == document["evidence_id"] and (
@@ -368,7 +407,9 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
             raise ValueError("reported results disagree with unchanged recorded evidence")
     save_json(root / "report.json", document)
     lines = [
-        "# Experiment 003 recorded results",
+        "# Experiment 003B recorded results"
+        if manifest.get("experiment") == "003B"
+        else "# Experiment 003 recorded results",
         "",
         document["caution"],
         "",
@@ -387,7 +428,12 @@ def replay_study(root: Path, freeze: Path) -> dict[str, object]:
         "",
         f"Missing or incomplete cells and prior interrupted attempts: {len(incomplete)}.",
     ]
-    write_text(root / "report.md", "\n".join(lines) + "\n")
+    text = "\n".join(lines) + "\n"
+    if manifest.get("experiment") == "003B":
+        from trajyn.lesson_diagnostics import diagnostic_text
+
+        text += diagnostic_text(read_json_value(document))
+    write_text(root / "report.md", text)
     return {
         "status": "complete" if len(rows) == 96 else "partial",
         "completed_cells": len(rows),

@@ -237,6 +237,101 @@ def test_predefined_selection_still_rejects_fabricated_and_mismatched_citations(
         )
 
 
+def test_compiler_is_deterministic_and_derives_only_witnessed_routes_and_codes() -> None:
+    from trajyn.lesson_compiler import compile_lesson
+
+    traces = tuple(qwen_source_fixture(reference(seed)) for seed in TRAIN_SEEDS)
+    development = tuple(reference(seed, Split.VALIDATION) for seed in DEV_SEEDS)
+    lesson, audit = compile_lesson(traces, development)
+    assert compile_lesson(tuple(reversed(traces)), development) == (lesson, audit)
+    assert lesson.producer_tools == ("locker_replacement", "ship_replacement")
+    assert lesson.success_codes == ("remedy_posted",)
+    assert audit["origin"] == "deterministic_extraction_from_model_generated_traces"
+    assert "case_closed" not in lesson.success_codes
+
+
+@pytest.mark.parametrize("invalid", ["wrong_ticket", "wrong_receipt", "refund"])
+def test_compiler_does_not_extract_invalid_or_alternate_remedy_evidence(invalid: str) -> None:
+    from trajyn.lesson_compiler import compile_lesson
+
+    class InvalidSource(DeliveryReferenceAgent):
+        identity = AgentIdentity("ollama", "qwen3:8b", "deterministic-test-fixture")
+
+        def decide(self, context: AgentContext) -> AgentDecision | None:
+            decision = super().decide(context)
+            if decision is None:
+                return None
+            action = decision.action
+            if invalid == "wrong_ticket" and action.tool == "ship_replacement":
+                action = replace(action, arguments={**action.arguments, "ticket_id": "case-other"})
+            if invalid == "wrong_receipt" and action.tool == "close_case":
+                action = replace(
+                    action, arguments={**action.arguments, "receipt_id": "receipt-000000000000"}
+                )
+            return replace(decision, action=action)
+
+    seed = TRAIN_SEEDS[3] if invalid == "refund" else TRAIN_SEEDS[0]
+    trace = run_task(
+        generate_delivery_task(seed, workflow=DELIVERY_V3), InvalidSource(), max_steps=10
+    )
+    replay_trajectory(trace)
+    assert (trace.verification.passed) == (invalid == "refund")
+    with pytest.raises(ValueError, match="no supported replacement handoff evidence"):
+        compile_lesson((trace,), tuple(reference(seed, Split.VALIDATION) for seed in DEV_SEEDS))
+
+
+def test_compiler_refuses_unrepresentable_producer_code_combinations() -> None:
+    from trajyn.lesson_compiler import check_route_codes
+
+    with pytest.raises(ValueError, match="unsupported producer/code combinations"):
+        check_route_codes(
+            {
+                "ship_replacement": {"remedy_posted", "remedy_exists"},
+                "locker_replacement": {"remedy_posted"},
+            }
+        )
+
+
+def test_post_receipt_diagnostics_distinguish_extra_calls_terminal_opportunity_and_no_evidence(
+    lesson: Lesson,
+) -> None:
+    from trajyn.lesson_diagnostics import post_receipt
+
+    class ExtraRead(DeliveryReferenceAgent):
+        def __init__(self) -> None:
+            self.read_again = False
+
+        def decide(self, context: AgentContext) -> AgentDecision | None:
+            if not self.read_again and any(
+                s.observation.data.get("receipt_id") for s in context.steps
+            ):
+                self.read_again = True
+                return AgentDecision(ToolAction("read_case", {"ticket_id": context.task.ticket_id}))
+            return super().decide(context)
+
+    task = generate_delivery_task(TRAIN_SEEDS[0], workflow=DELIVERY_V3)
+    trace = run_task(task, ExtraRead(), max_steps=10)
+    row = {
+        "turns": [
+            {"after_step": i, "call": i + 1, "responded": True, "memory": None}
+            for i in range(len(trace.steps))
+        ]
+    }
+    result = post_receipt(lesson, trace, row)
+    assert result["first_action_after_receipt"].tool == "read_case"
+    assert result["model_calls_until_closure_or_end"] == 2
+    assert result["extra_calls_before_closure"] == 1
+    assert result["case_closed"] and not result["next_decision_hint_delivered"]
+    limited = run_task(task, DeliveryReferenceAgent(), max_steps=4)
+    terminal = post_receipt(lesson, limited, {"turns": row["turns"][:4]})
+    assert terminal["reached_qualifying_receipt"] and not terminal["case_closed"]
+    assert terminal["terminal_opportunity_without_next_call"]
+    assert terminal["next_model_call"] is None
+    assert terminal["extra_calls_before_closure"] is None
+    negative = post_receipt(lesson, reference(TRAIN_SEEDS[4]), {"turns": []})
+    assert negative == {"reached_qualifying_receipt": False, "case_closed": True}
+
+
 def test_lookups_can_be_reordered_or_repeated_without_prefix_matching(lesson: Lesson) -> None:
     trace = reference(TRAIN_SEEDS[0])
     original = trace.steps[:-1]

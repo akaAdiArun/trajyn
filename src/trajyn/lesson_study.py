@@ -396,8 +396,13 @@ def verify_frozen(root: Path, freeze: Path, *, require_commit: bool = True) -> d
     if read_json(freeze) != manifest:
         raise ValueError("archive and committed protocol disagree")
     payload = {k: v for k, v in manifest.items() if k != "manifest_id"}
+    expected_design = design()
+    if manifest.get("experiment") == "003B":
+        from trajyn.compiled_study import compiled_design
+
+        expected_design = compiled_design()
     if digest(payload) != manifest["manifest_id"] or manifest["design"] != read_json_value(
-        design()
+        expected_design
     ):
         raise ValueError("frozen protocol differs from the fixed design")
     if manifest["runtime"] != runtime_hashes():
@@ -416,6 +421,12 @@ def verify_frozen(root: Path, freeze: Path, *, require_commit: bool = True) -> d
     )
     if inputs != manifest["files"]:
         raise ValueError("frozen input file inventory changed")
+    if manifest.get("experiment") == "003B":
+        from trajyn.lesson_compiler import verify_compilation
+
+        compiled = verify_compilation(root, source_pool(root), development_pool(root))
+        if compiled.lesson_id != manifest["lesson_id"]:
+            raise ValueError("compiled artifact differs from frozen lesson")
     if require_commit:
         committed_freeze(freeze)
     return cast(dict[str, Any], manifest)
@@ -442,14 +453,21 @@ def run(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str, obj
             if monotonic() >= deadline:
                 return {"status": "invocation_cap_reached", "resume": "run the same command"}
             task = generate_delivery_task(case["seed"], Split.TEST, workflow=DELIVERY_V3)
+            attempt_folder = next_attempt(folder)
             result = attempt(
-                next_attempt(folder),
+                attempt_folder,
                 task,
                 connection,
                 target,
                 policy_for(arm, lesson, task, capsules),
                 deadline,
             )
+            diagnostics = {}
+            if manifest.get("experiment") == "003B":
+                from trajyn.lesson_diagnostics import post_receipt
+
+                trace = read_trajectory(attempt_folder / "trace.jsonl")
+                diagnostics = {"post_receipt": post_receipt(lesson, trace, read_json_value(result))}
             save_json(
                 root / "target-progress.json",
                 {
@@ -457,6 +475,7 @@ def run(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str, obj
                     "arm": arm,
                     "status": result["status"],
                     "manifest_id": manifest["manifest_id"],
+                    **diagnostics,
                 },
             )
     from trajyn.lesson_report import replay_study

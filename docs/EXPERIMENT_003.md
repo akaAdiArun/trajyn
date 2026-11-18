@@ -1,5 +1,10 @@
 # Experiment 003 — Public evidence at an action handoff
 
+The completed induction study produced no accepted lesson across revisions
+1–3, and zero Granite target attempts ran. Its three archives are preserved.
+[Experiment 003B](EXPERIMENT_003B.md) separately evaluates deterministic
+extraction from the existing model-generated traces.
+
 Protocol date is November 18, 2026. The machine-readable design is
 [EXPERIMENT_003_PLAN.json](EXPERIMENT_003_PLAN.json). Local inference is opt-in.
 

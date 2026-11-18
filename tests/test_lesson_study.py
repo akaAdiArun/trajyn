@@ -300,3 +300,58 @@ def test_os_lock_prevents_concurrent_writers(tmp_path: Path) -> None:
 def test_cli_demo_and_replay(tmp_path: Path) -> None:
     assert main(["demo", "--output", str(tmp_path)]) == 0
     assert main(["replay", "--output", str(tmp_path)]) == 0
+
+
+def test_compiled_preparation_and_96_cells_use_no_qwen_inference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trajyn.compiled_study import compiled_design, prepare_compiled
+    from trajyn.lesson_study import verify_frozen
+
+    monkeypatch.setattr(OllamaConnection, "api", fixture_api)
+    connection = OllamaConnection("http://localhost", OPTIONS)
+    original = tmp_path / "original"
+    prepare(original, connection, tmp_path / "original-freeze.json")
+    original_hashes = artifact_hashes(original)
+    target_calls = []
+
+    def targets_only(
+        self: OllamaConnection, path: str, payload: dict[str, object] | None = None
+    ) -> dict[str, object]:
+        if path == "/api/chat":
+            assert payload is not None and payload["model"] == "granite4:3b"
+            target_calls.append(payload)
+        return fixture_api(self, path, payload)
+
+    monkeypatch.setattr(OllamaConnection, "api", targets_only)
+    root, freeze = tmp_path / "compiled", tmp_path / "compiled-freeze.json"
+    prepared = prepare_compiled(root, connection, freeze, original)
+    assert prepared["status"] == "ready_to_freeze"
+    assert not target_calls
+    assert not (root / "proposals").exists()
+    assert not (root / "induction-input.json").exists()
+    assert artifact_hashes(original) == original_hashes
+    plan: Any = compiled_design()
+    baseline: Any = design()
+    for field in ("cases", "profiles", "options", "max_steps", "analysis", "prompt_revision"):
+        assert plan[field] == baseline[field]
+    monkeypatch.setattr("trajyn.lesson_study.committed_freeze", lambda path: "test-fixture")
+    verify_frozen(root, freeze)
+    result = run(root, connection, freeze)
+    assert result["completed_cells"] == 96
+    report = read_json(root / "report.json")
+    assert report["post_receipt_summary"]["G"]["next_decision_hint_delivered"] == 16
+    assert report["post_receipt_summary"]["G"]["first_actions"] == {"close_case": 16}
+    assert report["post_receipt_summary"]["G"]["never_reached_evidence"] == 8
+    assert report["results"]["overall"]["paired"]["G_vs_A"]["difference_pp"] == 0
+    assert (
+        report["paired_efficiency"]["overall"]["G_vs_A"]["both_verified_mean_call_difference"] == 0
+    )
+    before = len(target_calls)
+    assert run(root, connection, freeze) == result
+    assert len(target_calls) == before
+    assert replay_study(root, freeze) == result
+    with pytest.raises(ValueError, match="existing target inference"):
+        prepare_compiled(tmp_path / "duplicate", connection, tmp_path / "duplicate.json", original)
+    assert artifact_hashes(original) == original_hashes
