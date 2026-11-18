@@ -1,6 +1,6 @@
 """Delivery-exception benchmark with split-specific scenarios and a state verifier."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from hashlib import sha256
 
 from trajyn.models import (
@@ -79,6 +79,7 @@ _GOAL = (
 )
 DELIVERY_V1 = "delivery-exception-v1"
 DELIVERY_V2 = "delivery-exception-v2"
+DELIVERY_V3 = "delivery-exception-v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,13 +149,67 @@ _EXPANDED = {
     ),
 }
 
+# A new version keeps the published v1/v2 seed semantics intact. Within each
+# partition, repeated rows deliberately share a family and are reported together.
+_LESSON_PROFILES = {
+    Split.TRAIN: (
+        _Profile("lost", stock=3),
+        _Profile("lost", stock=2, locker=True),
+        _Profile("lost", stock=2, warehouse_retry=True),
+        _Profile("lost"),
+        _Profile("delivered"),
+        _Profile("held"),
+    )
+    * 2,
+    Split.VALIDATION: (
+        _Profile("lost", stock=1),
+        _Profile("lost", stock=3, locker=True),
+        _Profile("lost", stock=2, missing_parcel=True),
+        _Profile("lost", stock=2, backup_carrier=True),
+        _Profile("lost", stock=2, warehouse_retry=True),
+        _Profile("lost", stock=1, locker=True, carrier_retry=True),
+        _Profile("lost", refund_approval=True),
+        _Profile("delivered"),
+        _Profile("held", missing_parcel=True),
+        _Profile("lost", stale_listing=True),
+        _Profile("delivered", backup_carrier=True),
+        _Profile("held", carrier_retry=True),
+    ),
+    Split.TEST: (
+        *(_Profile("lost", stock=3), _Profile("lost", stock=2, locker=True)) * 4,
+        *(
+            _Profile("lost", stock=2, missing_parcel=True, warehouse_retry=True),
+            _Profile("lost", stock=1, locker=True, backup_carrier=True),
+            _Profile("lost", stock=2, carrier_retry=True, warehouse_retry=True),
+            _Profile("lost", stock=2, missing_parcel=True, backup_carrier=True),
+        )
+        * 2,
+        _Profile("delivered", missing_parcel=True, backup_carrier=True, stale_report=True),
+        _Profile("held", carrier_retry=True, missing_parcel=True),
+        _Profile("lost", stale_listing=True, refund_approval=True, backup_carrier=True),
+        _Profile("delivered", missing_parcel=True, backup_carrier=True, stale_report=True),
+        _Profile("held", carrier_retry=True, missing_parcel=True),
+        _Profile("lost", stale_listing=True, refund_approval=True, backup_carrier=True),
+        _Profile("delivered", missing_parcel=True, backup_carrier=True, stale_report=True),
+        _Profile("held", carrier_retry=True, missing_parcel=True),
+    ),
+}
+
+
+def delivery_profiles(workflow: str) -> dict[str, list[dict[str, object]]]:
+    """Protocol metadata for the operator. Never passed into an AgentContext."""
+    profiles = {DELIVERY_V1: _PROFILES, DELIVERY_V2: _EXPANDED, DELIVERY_V3: _LESSON_PROFILES}
+    return {
+        split.value: [asdict(row) for row in rows] for split, rows in profiles[workflow].items()
+    }
+
 
 def generate_delivery_task(
     seed: int, split: Split = Split.TRAIN, *, workflow: str = DELIVERY_V1
 ) -> DeliveryTask:
     if seed < 0:
         raise ValueError("seed must be non-negative")
-    if workflow not in (DELIVERY_V1, DELIVERY_V2):
+    if workflow not in (DELIVERY_V1, DELIVERY_V2, DELIVERY_V3):
         raise ValueError("unsupported delivery workflow")
     ref = _instance_ref(seed, split, workflow)
     ticket_id = f"case-{ref[:20]}"
@@ -171,7 +226,9 @@ class DeliveryEnvironment:
     def __init__(self, task: DeliveryTask) -> None:
         if task != generate_delivery_task(task.seed, task.split, workflow=task.workflow):
             raise ValueError("task does not match its seed and split")
-        profiles = (_EXPANDED if task.workflow == DELIVERY_V2 else _PROFILES)[task.split]
+        profiles = {DELIVERY_V1: _PROFILES, DELIVERY_V2: _EXPANDED, DELIVERY_V3: _LESSON_PROFILES}[
+            task.workflow
+        ][task.split]
         self._profile = profiles[task.seed % len(profiles)]
         ref = _instance_ref(task.seed, task.split, task.workflow)
         self._workflow = task.workflow
@@ -183,7 +240,7 @@ class DeliveryEnvironment:
         self._approved = False
         self._parcel_value = 500 + (task.seed % 37) * 113
         self._initial_stock = self._profile.stock
-        if task.workflow == DELIVERY_V2 and self._initial_stock:
+        if task.workflow in (DELIVERY_V2, DELIVERY_V3) and self._initial_stock:
             self._initial_stock += int(ref[-2:], 16) % 3
         self._stock = self._initial_stock
         self._refund = 0
@@ -328,5 +385,5 @@ class DeliveryEnvironment:
             failures.append("incorrect_refund")
         if self._approved != (expected == "issue_refund" and self._profile.refund_approval):
             failures.append("incorrect_approval")
-        version = "v2" if self._workflow == DELIVERY_V2 else "v1"
+        version = {DELIVERY_V1: "v1", DELIVERY_V2: "v2", DELIVERY_V3: "v3"}[self._workflow]
         return Verification(f"delivery_exception_state_{version}", not failures, tuple(failures))

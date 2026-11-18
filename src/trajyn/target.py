@@ -3,7 +3,7 @@
 from trajyn.agent import AgentContext
 from trajyn.delivery_agent import DeliveryReferenceAgent, action_from_observations
 from trajyn.induction import observation_guard
-from trajyn.memory import CapsuleMemory, RawMemory, SummaryMemory, SummaryStep
+from trajyn.memory import CapsuleMemory, LessonMemory, RawMemory, SummaryMemory, SummaryStep
 from trajyn.models import AgentDecision, AgentIdentity, ToolAction, Trajectory, public_task
 from trajyn.transfer import capsule_action
 
@@ -48,6 +48,8 @@ class DeliveryTargetAgent(DeliveryReferenceAgent):
     def _suggest(self, context: AgentContext) -> ToolAction | None:
         memory = context.memory
         index = len(context.steps)
+        if isinstance(memory, LessonMemory):
+            return None
         if isinstance(memory, CapsuleMemory):
             return capsule_action(context, memory)
         if memory is None or index >= len(memory.steps):
