@@ -1,5 +1,6 @@
 """Public-history and validation regressions using explicitly scripted fixtures."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -15,7 +16,7 @@ from trajyn.lesson import (
     render_hint,
     validate_lesson,
 )
-from trajyn.lesson_learning import induction_messages, induction_schema
+from trajyn.lesson_learning import handoff_candidates, induction_messages, induction_schema
 from trajyn.lesson_protocol import DEV_SEEDS, MAX_STEPS, TEST_SEEDS, TRAIN_SEEDS
 from trajyn.lesson_study import fixture_lesson, read_json_value
 from trajyn.models import (
@@ -135,6 +136,105 @@ def test_object_evidence_is_rejected_without_coercion(lesson: Lesson) -> None:
     with pytest.raises(ValueError, match="invalid lesson"):
         decode_lesson(proposal, lesson.schemas)
     assert encode_json(proposal) == original
+
+
+def qwen_source_fixture(trace: Trajectory) -> Trajectory:
+    """Label deterministic test data for the model-identity filtering regression."""
+    from trajyn.recording import trajectory_id
+
+    trace = replace(
+        trace, agent=AgentIdentity("ollama", "qwen3:8b", "test-fixture"), trajectory_id=""
+    )
+    return replace(trace, trajectory_id=trajectory_id(trace))
+
+
+def test_positive_candidates_group_replayed_handoffs_and_exclude_refund_and_inspection() -> None:
+    traces = tuple(qwen_source_fixture(reference(seed)) for seed in TRAIN_SEEDS)
+    candidates = handoff_candidates(traces)
+    assert set(candidates) == {"ship_replacement", "locker_replacement"}
+    assert all(candidates.values())
+    by_id = {trace.trajectory_id: trace for trace in traces}
+    actual = set()
+    for tool, citations in candidates.items():
+        for citation in citations:
+            trace = by_id[citation.trajectory_id]
+            producer = trace.steps[citation.producer_step - 1]
+            consumer = trace.steps[citation.consumer_step - 1]
+            assert producer.action.tool == tool
+            assert (
+                producer.observation.data["receipt_id"] == consumer.action.arguments["receipt_id"]
+            )
+            assert producer.action.arguments["ticket_id"] == consumer.action.arguments["ticket_id"]
+            assert producer.observation.ok and consumer.observation.ok
+            actual.add((trace.trajectory_id, producer.index, consumer.index))
+    expected = {
+        (t.trajectory_id, s.index, t.steps[-1].index)
+        for t in traces
+        for s in t.steps
+        if s.action.tool in candidates and s.observation.data.get("receipt_id")
+    }
+    assert actual == expected
+    refund_traces = [t for t in traces if t.steps[-2].action.tool == "issue_refund"]
+    assert refund_traces and all(
+        not any(c.trajectory_id == t.trajectory_id for group in candidates.values() for c in group)
+        for t in refund_traces
+    )
+    assert any(s.action.tool == "inspect_parcel" for t in traces for s in t.steps)
+    assert all(
+        by_id[c.trajectory_id].steps[c.producer_step - 1].action.tool != "inspect_parcel"
+        for group in candidates.values()
+        for c in group
+    )
+    data = json.loads(str(induction_messages(traces)[1]["content"]))
+    assert data["positive_candidates"] == read_json_value(candidates)
+    assert data["revision"] == 3
+
+
+def test_positive_candidates_exclude_scripted_other_model_and_failed_sources() -> None:
+    scripted = reference(TRAIN_SEEDS[0])
+    other_model = replace(scripted, agent=AgentIdentity("ollama", "granite4:3b", "test-fixture"))
+    from trajyn.recording import trajectory_id
+
+    other_model = replace(other_model, trajectory_id=trajectory_id(other_model))
+    failed = run_task(
+        generate_delivery_task(TRAIN_SEEDS[0], workflow=DELIVERY_V3),
+        DeliveryReferenceAgent(),
+        max_steps=4,
+    )
+    assert handoff_candidates((scripted, other_model, qwen_source_fixture(failed))) == {
+        "ship_replacement": (),
+        "locker_replacement": (),
+    }
+
+
+@pytest.mark.parametrize("problem", ["fabricated", "inspection", "refund"])
+def test_predefined_selection_still_rejects_fabricated_and_mismatched_citations(
+    problem: str,
+) -> None:
+    sources = tuple(qwen_source_fixture(reference(seed)) for seed in TRAIN_SEEDS[:4])
+    lesson = fixture_lesson(sources[:2])
+    citation = lesson.evidence[0]
+    if problem == "fabricated":
+        citation = replace(citation, trajectory_id="sha256:" + "0" * 64)
+        reason = "citation is absent"
+    elif problem == "inspection":
+        citation = replace(citation, producer_step=2)
+        reason = "data flow is unsupported"
+    else:
+        trace = sources[3]
+        citation = replace(
+            citation,
+            trajectory_id=trace.trajectory_id,
+            producer_step=len(trace.steps) - 1,
+            consumer_step=len(trace.steps),
+        )
+        reason = "data flow is unsupported"
+    with pytest.raises(ValueError, match=reason):
+        validate_lesson(
+            replace(lesson, evidence=(citation,)),
+            sources,
+            tuple(reference(seed, Split.VALIDATION) for seed in DEV_SEEDS),
+        )
 
 
 def test_lookups_can_be_reordered_or_repeated_without_prefix_matching(lesson: Lesson) -> None:

@@ -6,7 +6,15 @@ from pathlib import Path
 from time import monotonic
 
 from trajyn.agent import AgentContext
-from trajyn.lesson import Activation, Exclusion, Lesson, decode_lesson, validate_lesson
+from trajyn.lesson import (
+    Activation,
+    Exclusion,
+    Lesson,
+    LessonEvidence,
+    decode_lesson,
+    valid_receipt,
+    validate_lesson,
+)
 from trajyn.lesson_protocol import (
     INDUCTION_REVISION,
     OPTIONS,
@@ -73,17 +81,57 @@ def induction_schema() -> dict[str, object]:
     }
 
 
+def handoff_candidates(sources: tuple[Trajectory, ...]) -> dict[str, tuple[LessonEvidence, ...]]:
+    """Enumerate witnessed replacement handoffs, separately for each producing tool."""
+    candidates: dict[str, list[LessonEvidence]] = {
+        "ship_replacement": [],
+        "locker_replacement": [],
+    }
+    for source in sources:
+        replay_trajectory(source)
+        if source.task.split != Split.TRAIN:
+            raise ValueError("handoff candidates require training records")
+        if not (
+            source.verification.passed
+            and source.agent.provider == "ollama"
+            and source.agent.model == "qwen3:8b"
+        ):
+            continue
+        for producer in source.steps:
+            receipt = producer.observation.data.get("receipt_id")
+            if not (
+                producer.action.tool in candidates
+                and producer.observation.ok
+                and producer.observation.code in {"remedy_posted", "remedy_exists"}
+                and producer.action.arguments.get("ticket_id") == source.task.ticket_id
+                and valid_receipt(receipt)
+            ):
+                continue
+            for consumer in source.steps[producer.index :]:
+                if (
+                    consumer.action.tool == "close_case"
+                    and consumer.observation.ok
+                    and consumer.observation.code == "case_closed"
+                    and consumer.action.arguments.get("ticket_id") == source.task.ticket_id
+                    and consumer.action.arguments.get("receipt_id") == receipt
+                ):
+                    citation = LessonEvidence(source.trajectory_id, producer.index, consumer.index)
+                    if citation not in candidates[producer.action.tool]:
+                        candidates[producer.action.tool].append(citation)
+    return {tool: tuple(references) for tool, references in candidates.items()}
+
+
 def induction_messages(
     sources: tuple[Trajectory, ...], *, revision: int = INDUCTION_REVISION
 ) -> list[dict[str, object]]:
-    if revision not in (1, 2):
+    if revision not in (1, 2, 3):
         raise ValueError("unsupported induction revision")
     for source in sources:
         replay_trajectory(source)
         if source.task.split != Split.TRAIN:
             raise ValueError("learner may see training only")
-    # Source verifier labels are permitted for induction. No dev/test references,
-    # expected candidate, completed symbolic binding, or intended receipt rule enters.
+    # Only training records enter induction. Revision 3 adds enumerated evidence
+    # references for the predefined handoff, preserving the earlier prompt revisions.
     selected: list[Trajectory] = []
     for passed in (True, False):
         routes: set[tuple[str, ...]] = set()
@@ -143,6 +191,17 @@ def induction_messages(
                     "producer_step, and consumer_step. Cite the action producing the value and "
                     "a strictly later action consuming it. No free prose or code."
                 )
+                + (
+                    " This revision tests evidence-grounded selection within a predefined handoff. "
+                    "Select one or both supported replacement routes in positive_candidates "
+                    "and cite their evidence. Each entry references a replay-verified successful "
+                    "producer and later consumer. Use only the selected route names as "
+                    "producer_tools. Derive bindings and success codes from those producing and "
+                    "consuming steps, using only arguments required by the consumer. "
+                    "Contrasts are not positive candidates."
+                    if revision == 3
+                    else ""
+                )
             ),
         },
         {
@@ -153,6 +212,11 @@ def induction_messages(
                     "vocabulary": vocabulary,
                     "public_tool_contracts": tool_contracts(sources),
                     "contrasts": contrasts,
+                    **(
+                        {"positive_candidates": handoff_candidates(sources)}
+                        if revision == 3
+                        else {}
+                    ),
                 }
             ),
         },
@@ -211,6 +275,7 @@ def learn(
 ) -> Lesson | None:
     messages = induction_messages(sources)
     save_json(root / "induction-input.json", messages)
+    save_json(root / "induction-candidates.json", handoff_candidates(sources))
     schemas = tool_contracts(sources)
     for call in range(1, 5):
         target = root / "proposals" / f"{call}.json"
@@ -288,6 +353,10 @@ def verify_learning(
     contrasts = sources + counterexamples
     archived_messages = read_json(root / "induction-input.json")
     revision = json.loads(archived_messages[1]["content"])["revision"]
+    if revision == 3 and encode_json(read_json(root / "induction-candidates.json")) != (
+        encode_json(handoff_candidates(contrasts))
+    ):
+        raise ValueError("positive candidate references differ from replayed training handoffs")
     if encode_json(archived_messages) != encode_json(
         induction_messages(contrasts, revision=revision)
     ):

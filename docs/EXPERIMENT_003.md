@@ -128,6 +128,38 @@ It makes no Ollama requests.
 
 ## Operator commands
 
+### Induction revision 3
+
+Revision 3 tests evidence-grounded selection within a predefined
+replacement-to-closure handoff. Its positive candidate list is enumerated
+from independently replayed, verified Qwen training successes. Each candidate
+is a successful `ship_replacement` or `locker_replacement` action returning a
+well-formed receipt, followed by a successful `close_case` consuming that
+exact receipt for the same ticket. The two producer tools have separate lists.
+All qualifying step pairs are included. Inspection, refunds, other remedies,
+scripted successes, and unsuccessful model attempts supply no positive
+candidates. Training contrasts retain their existing roles.
+
+Qwen receives the candidate references alongside the public contracts and
+training contrasts. It selects one or both supported routes and cites the
+evidence through the existing structured lesson output. The program supplies
+neither a completed lesson nor a manually selected citation subset. The same
+provenance, compatibility, symbolic binding, and development checks decide
+acceptance. The candidate file and submitted input can be reconstructed
+offline. Earlier induction revisions remain independently replayable.
+
+Both failed archives remain intact. This final preparation retry uses the
+same twelve replayed source attempts, up to four fresh induction calls, and
+the existing deterministic selection rule. Target arms, held-out profiles,
+cases, inference limits, and scoring retain the committed design.
+
+```sh
+python -m trajyn.lesson_study prepare --output runs/experiment-003-r3 --source-archive runs/experiment-003
+```
+
+The retry stops at the preparation result for review of producer coverage and
+cited evidence. The proposed freeze remains uncommitted.
+
 ### Induction revision 2
 
 The first live preparation collected twelve Qwen source attempts with ten
