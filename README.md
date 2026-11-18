@@ -73,6 +73,12 @@ one run. A **capability capsule** stores a procedure with tool requirements and
 references to the observations it depends on. TRAJYN can check those requirements
 and withhold or withdraw the procedure if the new run diverges.
 
+A **compiled lesson** captures a specific handoff from verified model traces.
+In Experiment 003B, the compiler extracted the link between a replacement
+receipt and the action that used it to close the case. The live evidence gate
+offers that hint when the current run has a qualifying receipt for the same
+case. The receiving model still chooses its next action.
+
 [Architecture](https://akaadiarun.github.io/trajyn/#architecture) ·
 [Agent protocol](src/trajyn/agent.py) · [Runtime](src/trajyn/runner.py) ·
 [Branch-aware transfer](docs/BRANCH_TRANSFER.md) · [Project charter](docs/PROJECT_BRIEF.md) ·
@@ -85,6 +91,8 @@ and withhold or withdraw the procedure if the new run diverges.
 [Evaluation design](docs/EVALUATION.md) ·
 [Experiment 001 protocol](docs/EXPERIMENT_001.md) ·
 [Experiment 002 protocol](docs/EXPERIMENT_002.md) ·
+[Experiment 003B protocol](docs/EXPERIMENT_003B.md) ·
+[Experiment 003B results](docs/EXPERIMENT_003B_RESULTS.md) ·
 [Offline comparison](examples/offline/comparison.md)
 
 ### Contributing

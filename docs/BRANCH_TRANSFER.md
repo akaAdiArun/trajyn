@@ -1,5 +1,10 @@
 # Branch-aware transfer
 
+This page describes the original prefix gate. Experiment 003B uses it as
+arm F and compares it with a live evidence gate that offers a compiled receipt
+handoff hint when the current run has a qualifying receipt.
+[Experiment 003B protocol](EXPERIMENT_003B.md) · [Results](EXPERIMENT_003B_RESULTS.md)
+
 Static transfer admits a capsule after checking its workflow and required tool
 contracts. Those public checks cannot distinguish two delivery cases served by
 the same interface. Experiment 001 recorded three paired regressions under
