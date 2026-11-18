@@ -50,6 +50,9 @@ def test_site_build_is_crawlable_and_replayable(tmp_path: Path) -> None:
     assert "The case stayed open." in html
     assert html.count("Acknowledged delivery and closed the case.") == 2
     assert "SoftwareSourceCode" in html
+    assert 'type="module" src="assets/site.js"' in html
+    assert 'id="story-progress"' in html and "data-story-track" in html
+    assert (tmp_path / "assets/replay-motion.mjs").is_file()
     assert "Tool request" in html and "Guarded procedure" in html
     assert html.count("<h1 ") == 1
     assert 'content="1200"' in html and 'content="630"' in html
