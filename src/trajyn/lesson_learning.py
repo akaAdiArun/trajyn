@@ -165,6 +165,8 @@ def learn(
         if target.exists():
             record = read_json(target)
         else:
+            if deadline is not None and monotonic() >= deadline - 1:
+                return None
             learner = RecordedConnection(
                 OllamaConnection(
                     f"http://[{connection.host}]:{connection.port}"

@@ -291,6 +291,8 @@ def prepare(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str,
     contrasts = scripted_contrasts(root)
     lesson = learn(root, connection, source, sources + contrasts, development_pool(root), deadline)
     if lesson is None:
+        if monotonic() >= deadline - 1:
+            return {"status": "invocation_cap_reached", "resume": "repeat prepare"}
         save_json(root / "status.json", {"status": "no_valid_learned_lesson", "target_attempts": 0})
         return cast(dict[str, object], read_json(root / "status.json"))
     capsules = []
@@ -368,6 +370,7 @@ def verify_frozen(root: Path, freeze: Path, *, require_commit: bool = True) -> d
 
 
 def run(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str, object]:
+    deadline = monotonic() + 4 * 60 * 60
     manifest = verify_frozen(root, freeze)
     source, target = models(connection)
     if read_json_value(source) != manifest["models"]["source"] or (
@@ -377,7 +380,6 @@ def run(root: Path, connection: OllamaConnection, freeze: Path) -> dict[str, obj
     lesson = read_lesson(root / "lesson.json", tool_contracts(source_pool(root)))
     capsules = read_capsules(root / "capsules.jsonl")
     validate_lesson(lesson, source_pool(root), development_pool(root))
-    deadline = monotonic() + 4 * 60 * 60
     for case in manifest["design"]["cases"]:
         for arm in case["arms"]:
             if arm == "F" and not manifest["F_available"][str(case["seed"])]:

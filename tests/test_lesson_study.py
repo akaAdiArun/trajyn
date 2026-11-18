@@ -226,6 +226,7 @@ def test_infrastructure_failure_is_sealed_incomplete_and_replayable(
 
 def test_manifest_has_distinct_partitions_routes_and_rotated_order() -> None:
     plan: Any = design()
+    assert read_json(Path("docs/EXPERIMENT_003_PLAN.json")) == json.loads(encode_json(plan))
     assert set(plan["train_seeds"]).isdisjoint(plan["dev_seeds"])
     assert set(plan["dev_seeds"]).isdisjoint(c["seed"] for c in plan["cases"])
     counts = {
