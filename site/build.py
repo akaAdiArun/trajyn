@@ -183,12 +183,21 @@ def render_replay(output: Path) -> tuple[str, str, str]:
             if stop.tag
             else ""
         )
+        carrier_ids = ""
+        if number == 2:
+            parcel = escape(str(step.action.arguments["parcel_id"]))
+            product = escape(str(step.observation.data["product_id"]))
+            carrier_ids = (
+                f'<p class="carrier-ids"><span>Parcel <code>{parcel}</code></span> '
+                f"<span>Product <code>{product}</code></span></p>"
+            )
         panels.append(
             _panel(
                 anchor,
                 stop.label,
                 receipt_value + f"<dl><div><dt>System returned</dt><dd>{stop.result}</dd></div>"
                 f"<div><dt>What this allowed</dt><dd>{stop.consequence}</dd></div></dl>"
+                + carrier_ids
                 + _recorded(records),
                 f"Stop {number:02}" + (f" / {stop.tag}" if stop.tag else ""),
                 action=True,
@@ -388,7 +397,7 @@ def build(output: Path, base_url: str = CANONICAL, verification: str = "") -> No
     output.mkdir(parents=True, exist_ok=True)
     assets = output / "assets"
     assets.mkdir(exist_ok=True)
-    for name in ("social-preview.png", "site.css", "site.js"):
+    for name in ("social-preview.png", "site.css", "site.js", "replay-motion.mjs"):
         copyfile(SITE / "assets" / name, assets / name)
     slip, links, panels = render_replay(output)
     backup_status, backup_outcomes = render_comparison()

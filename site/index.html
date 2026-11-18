@@ -7,7 +7,7 @@
   $metadata
   <meta name="theme-color" content="#f6f2e7">
   <link rel="stylesheet" href="assets/site.css">
-  <script src="assets/site.js" defer></script>
+  <script type="module" src="assets/site.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -23,9 +23,9 @@
   </header>
 
   <main id="main">
-    <section class="wrap intro" aria-labelledby="headline">
+    <section class="wrap intro" aria-labelledby="headline" data-scroll-hero>
       <div class="intro-copy">
-        <h1 id="headline"><span>One AI fixed it.</span> <span>What can the next one reuse?</span></h1>
+        <h1 id="headline"><span class="hero-line"><span>One AI fixed it.</span></span> <span class="hero-line"><span>What can the next one reuse?</span></span></h1>
         <p class="lead">TRAJYN is a research project about helping one AI learn from another AI’s work. It records what the first AI tried, checks what actually worked, and keeps the useful steps for a future task.</p>
         <p class="status"><strong>Today:</strong> a working prototype tested in a simulator. It doesn’t yet connect to Claude Code or Codex.</p>
         <a class="primary" href="#replay">Follow the receipt <span aria-hidden="true">→</span></a>
@@ -37,11 +37,11 @@
         </figcaption>
         <div class="slip-route">
           <svg class="route-spine" viewBox="0 0 24 400" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M12 50v300M12 50h12M12 150h12M12 250h12M12 350h12"/>
+            <path pathLength="1" d="M24 50H12V150H24M12 150V250H24M12 250V350H24"/>
           </svg>
           <ol>$slip_rows</ol>
           <svg class="receipt-connector" viewBox="0 0 24 400" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 250h14v100H0"/>
+            <path pathLength="1" d="M0 250h14v100H0"/>
           </svg>
         </div>
         <div class="slip-outcome"><strong>Verified outcome</strong><span aria-hidden="true">·</span> Case closed</div>
@@ -50,41 +50,53 @@
 
     <section class="chapter replay-chapter" id="replay" aria-labelledby="replay-heading">
       <div class="wrap">
-        <header class="chapter-head" data-chapter-reveal>
+        <header class="chapter-head" data-motion-heading>
           <p class="kicker">Replay / Case 01</p>
-          <h2 id="replay-heading">A receipt, not a guess</h2>
+          <div class="heading-window"><h2 id="replay-heading">A receipt, not a guess</h2></div>
           <p class="chapter-intro">Animated replay of a recorded run in a simulator. No AI is running live.</p>
         </header>
-        <div class="replay" data-replay>
-          <div class="replay-controls" role="group" aria-label="Replay controls" hidden>
-            <button type="button" data-play-toggle>Play</button>
-            <button type="button" data-restart>Replay</button>
-          </div>
-          <div class="replay-route">
-            <div class="route-board">
-              <nav aria-label="Recorded actions">
-                <ol>$replay_links</ol>
-              </nav>
-              <p class="handoff-note">The next step needs this receipt.</p>
-              <div class="receipt-track" aria-hidden="true">
-                <svg viewBox="0 0 84 292" preserveAspectRatio="none">
-                  <path d="M34 160H47Q51 160 51 166V254Q51 260 47 260H34"/>
-                </svg>
-                <span class="receipt-endpoint returned">Receipt</span>
-                <span class="receipt-endpoint used">Receipt</span>
-                <span class="receipt-token" hidden>Receipt</span>
+        <div class="story-track" data-story-track>
+          <div class="story-sticky">
+            <div class="replay" data-replay>
+              <div class="replay-controls" role="group" aria-label="Replay controls" hidden>
+                <button type="button" data-play-toggle>Play</button>
+                <button type="button" data-restart>Replay</button>
+                <div class="story-meter">
+                  <label for="story-progress">Scroll through the case</label>
+                  <progress id="story-progress" max="1" value="0"></progress>
+                </div>
               </div>
-            </div>
-            <nav class="replay-records" aria-label="Other replay records">
-              <a href="#trace-1" aria-controls="trace-1">Task input</a>
-              <a href="#trace-6" aria-controls="trace-6">Final verification</a>
-              <a href="#trace-7" aria-controls="trace-7">Saved procedure</a>
-            </nav>
-          </div>
-          <div class="replay-stage">
-            <div class="replay-pane" aria-live="polite">$replay_steps</div>
-            <div class="replay-result" role="status">
-              <p><strong>Verified outcome</strong> · Case closed</p>
+              <div class="replay-route">
+                <div class="route-board">
+                  <svg class="replay-spine" viewBox="0 0 14 320" preserveAspectRatio="none" aria-hidden="true">
+                    <path d="M5 32V288"/>
+                    <path class="replay-spine-fill" pathLength="1" d="M5 32V288"/>
+                  </svg>
+                  <nav aria-label="Recorded actions">
+                    <ol>$replay_links</ol>
+                  </nav>
+                  <p class="handoff-note">The next step needs this receipt.</p>
+                  <div class="receipt-track" aria-hidden="true">
+                    <svg viewBox="0 0 136 320" preserveAspectRatio="none">
+                      <path data-receipt-path pathLength="1" d="M33 160H84Q96 160 96 176V272Q96 288 84 288H33"/>
+                    </svg>
+                    <span class="receipt-endpoint returned">Receipt</span>
+                    <span class="receipt-endpoint used">Receipt</span>
+                    <span class="receipt-token" hidden>Receipt</span>
+                  </div>
+                </div>
+                <nav class="replay-records" aria-label="Other replay records">
+                  <a href="#trace-1" aria-controls="trace-1">Task input</a>
+                  <a href="#trace-6" aria-controls="trace-6">Final verification</a>
+                  <a href="#trace-7" aria-controls="trace-7">Saved procedure</a>
+                </nav>
+              </div>
+              <div class="replay-stage">
+                <div class="replay-pane" aria-live="polite">$replay_steps</div>
+                <div class="replay-result" role="status">
+                  <p><strong>Verified outcome</strong> · Case closed</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -95,9 +107,9 @@
 
     <section class="chapter" id="second-case" aria-labelledby="second-case-heading">
       <div class="wrap">
-        <header class="chapter-head" data-chapter-reveal>
+        <header class="chapter-head" data-motion-heading>
           <p class="kicker">Comparison / Case 02</p>
-          <h2 id="second-case-heading">A similar problem. A different answer.</h2>
+          <div class="heading-window"><h2 id="second-case-heading">A similar problem. A different answer.</h2></div>
           <p class="chapter-intro">A missing parcel report starts both cases. The carrier evidence determines which response fits.</p>
         </header>
         <div class="case-spread">
@@ -119,11 +131,11 @@
             </details>
           </article>
         </div>
-        <figure class="case-fork">
+        <figure class="case-fork" data-motion-fork>
           <svg viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true">
             <path class="fork-stem" d="M50 0v12"/>
-            <path class="fork-replace" d="M50 12H25v36"/>
-            <path class="fork-acknowledge" d="M50 12h25v36"/>
+            <path class="fork-replace" pathLength="1" d="M50 12H25v36"/>
+            <path class="fork-acknowledge" pathLength="1" d="M50 12h25v36"/>
           </svg>
           <figcaption>
             <span><small>Case 01 · Lost</small><strong>Replace</strong></span>
@@ -136,16 +148,16 @@
 
     <section class="chapter results-chapter" id="experiments" aria-labelledby="experiments-heading">
       <div class="wrap">
-        <header class="chapter-head" data-chapter-reveal>
+        <header class="chapter-head" data-motion-heading>
           <p class="kicker">Results</p>
-          <h2 id="experiments-heading">So far, we haven’t shown that passing along advice makes the next AI do better.</h2>
+          <div class="heading-window"><h2 id="experiments-heading">So far, we haven’t shown that passing along advice makes the next AI do better.</h2></div>
           <p class="chapter-intro">A verifier checked which tasks were complete. The studies also recorded when the AI received advice.</p>
         </header>
         <div class="results-spread">
           <article aria-labelledby="experiment-001-heading">
             <h3 id="experiment-001-heading">Experiment 001</h3>
             <p>Verified completion on ten receiving-model tasks.</p>
-            <div class="completion-marks">$completion_marks</div>
+            <div class="completion-marks" data-motion-marks>$completion_marks</div>
             <p class="source-links"><a href="https://github.com/akaAdiArun/trajyn/blob/main/docs/EXPERIMENT_001_RESULTS.md">Read Experiment 001 results</a></p>
           </article>
           <aside class="results-note" aria-labelledby="experiment-002-heading">
@@ -163,13 +175,13 @@
 
     <section class="chapter" id="architecture" aria-labelledby="architecture-heading">
       <div class="wrap end-spread">
-        <header class="chapter-head" data-chapter-reveal>
+        <header class="chapter-head" data-motion-heading>
           <p class="kicker">Architecture</p>
-          <h2 id="architecture-heading">What gets saved?</h2>
+          <div class="heading-window"><h2 id="architecture-heading">What gets saved?</h2></div>
           <p class="chapter-intro">TRAJYN records the actions and responses, then checks the resulting state. When a run passes, it can save a procedure that points to where each input came from.</p>
         </header>
         <div>
-          <dl class="definitions">
+          <dl class="definitions architecture-rule" data-motion-rule>
             <div><dt>Trajectory</dt><dd>The record of one run, including tool calls, responses, and the verifier’s outcome.</dd></div>
             <div><dt>Capability capsule</dt><dd>A portable procedure with tool requirements, links to its evidence, and rules for when its steps apply.</dd></div>
           </dl>

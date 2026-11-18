@@ -33,6 +33,8 @@ jobs:
         run: python -m mypy
       - name: Test and validate trajectory records
         run: python -m pytest
+      - name: Test the scroll replay progress mapping
+        run: node --test tests/test_replay_motion.mjs
       - name: Build wheel and source distribution
         run: python -m build
       - name: Smoke test the installed wheel
