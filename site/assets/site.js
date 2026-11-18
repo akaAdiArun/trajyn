@@ -11,19 +11,24 @@ const track = document.querySelector("[data-story-track]");
 const sticky = track.querySelector(".story-sticky");
 const replay = track.querySelector("[data-replay]");
 const pane = replay.querySelector(".replay-pane");
+const scene = replay.querySelector(".evidence-scene");
+const paths = [...scene.querySelectorAll(".evidence-path")].map(svg => {
+  const connector = svg.querySelector("[data-receipt-path]");
+  return {svg, connector, length: connector.getTotalLength()};
+});
+const phaseLabel = scene.querySelector("[data-scene-phase]");
+const phaseStatus = replay.querySelector("[data-accessible-phase]");
 const links = [...replay.querySelectorAll("nav a")];
 const panels = new Map([...pane.querySelectorAll("[data-evidence]")]
   .map(panel => ["#" + panel.id, panel]));
 const controls = replay.querySelector(".replay-controls");
 const play = controls.querySelector("[data-play-toggle]");
 const restart = controls.querySelector("[data-restart]");
+const recordsButton = controls.querySelector("[data-inspect]");
+const introRestart = hero.querySelector("[data-intro-restart]");
 const meter = controls.querySelector("progress");
 const result = replay.querySelector(".replay-result p");
 const token = replay.querySelector(".receipt-token");
-const svg = replay.querySelector(".receipt-track svg");
-const connector = svg.querySelector("[data-receipt-path]");
-const length = connector.getTotalLength();
-const {width, height} = svg.viewBox.baseVal;
 const duration = 14500;
 const first = "#trace-2";
 
@@ -61,19 +66,38 @@ function render(progress, record) {
   if (lastPaint?.progress === progress && lastPaint.hash === hash) return;
   lastPaint = {progress, hash};
   show(hash);
-  if (replay.dataset.phase !== state.phase) replay.dataset.phase = state.phase;
+  if (replay.dataset.phase !== state.phase) {
+    replay.dataset.phase = state.phase;
+    phaseLabel.textContent = state.label;
+    phaseStatus.textContent = state.label;
+  }
   meter.value = state.progress;
   result.hidden = state.phase !== "verified";
   token.hidden = !state.receipt;
-  value(replay, "--route", state.route);
-  value(replay, "--handoff", state.transfer);
-  value(replay, "--arrival", unit(state.transfer, .55, 1));
-  value(replay, "--evidence", state.evidence);
-  value(replay, "--verified", state.verification);
+  const effects = {
+    "--case": state.case,
+    "--case-away": state.caseAway,
+    "--carrier": state.carrier,
+    "--carrier-in": state.carrierIn,
+    "--carrier-away": state.carrierAway,
+    "--source": state.source,
+    "--source-in": state.sourceIn,
+    "--destination": state.destination,
+    "--input": state.accepted,
+    "--path": state.path,
+    "--transfer": state.transfer,
+    "--note": state.note,
+    "--verified": state.verification,
+  };
+  for (const [key, amount] of Object.entries(effects)) value(scene, key, amount);
   if (state.receipt) {
+    const {connector, length} = geometry.path;
     const point = connector.getPointAtLength(length * state.transfer);
     value(token, "--token-x", point.x * geometry.scaleX, "px");
     value(token, "--token-y", point.y * geometry.scaleY, "px");
+    value(token, "--token-angle", state.tokenAngle, "deg");
+    value(token, "--token-size", state.tokenSize);
+    value(token, "--token-opacity", state.tokenOpacity);
   }
 }
 
@@ -87,14 +111,17 @@ function measure() {
     const top = element.getBoundingClientRect().top + y;
     return [top - viewport * from, top - viewport * to];
   }
-  const view = svg.getBoundingClientRect();
+  const path = paths.find(({svg}) => svg.clientWidth > 0);
+  const {width, height} = path.svg.viewBox.baseVal;
+  const view = path.svg.getBoundingClientRect();
   geometry = {
     story: bounds.top + y - parseFloat(getComputedStyle(sticky).top),
     distance: Math.max(1, bounds.height - sticky.offsetHeight),
+    path,
     scaleX: view.width / width,
     scaleY: view.height / height,
     hero: [heroBounds.top + y, heroBounds.top + y + heroBounds.height * .70],
-    headings: headings.map(heading => entry(heading, .98, .62)),
+    headings: headings.map(heading => entry(heading, .96, .58)),
     fork: entry(fork, .98, .57),
     marks: entry(marks, 1, .51),
     architecture: entry(architecture, .96, .53),
@@ -106,13 +133,15 @@ function measure() {
 function renderSurroundings(y) {
   const exit = unit(y, ...geometry.hero);
   value(hero, "--hero-exit", exit);
-  value(hero, "--hero-rewind", exit * .64);
+  value(hero, "--hero-rewind", exit * .38);
   headings.forEach((heading, index) => {
     const entry = unit(y, ...geometry.headings[index]);
     value(heading, "--heading", entry);
     value(heading, "--explanation", unit(entry, .22, 1));
   });
-  value(fork, "--fork", unit(y, ...geometry.fork));
+  const split = unit(y, ...geometry.fork);
+  value(fork, "--fork-stem", unit(split, 0, .26));
+  value(fork, "--fork", unit(split, .18, 1));
   const emphasis = unit(y, ...geometry.marks);
   value(marks, "--baseline-marks", unit(emphasis, 0, .64));
   value(marks, "--procedure-marks", unit(emphasis, .34, 1));
@@ -140,17 +169,24 @@ function stop() {
 
 function clearReading() {
   reading = null;
-  delete replay.dataset.inspecting;
+  showRecords(false);
+}
+
+function showRecords(open) {
+  replay.toggleAttribute("data-inspecting", motion && open);
+  recordsButton.setAttribute("aria-expanded", String(motion && open));
+  recordsButton.textContent = motion && open ? "Return to scene" : "Inspect record";
+  pane.hidden = motion && !open;
 }
 
 function closeRecords() {
   replay.querySelectorAll(".recorded[open]").forEach(details => { details.open = false; });
 }
 
-function inspect(hash) {
+function inspect(hash, open = false) {
   stop();
   const panel = panels.get(hash);
-  replay.toggleAttribute("data-inspecting", !panel.hasAttribute("data-action") || !!panel.querySelector(".recorded[open]"));
+  showRecords(open || !panel.hasAttribute("data-action"));
   if (!motion) {
     show(hash);
     return;
@@ -170,7 +206,7 @@ function update(now) {
   if (requestedHash !== undefined) {
     const hash = requestedHash;
     requestedHash = undefined;
-    if (panels.has(hash)) inspect(hash);
+    if (panels.has(hash)) inspect(hash, true);
     else clearReading();
   }
 
@@ -206,7 +242,7 @@ function holdRecord() {
   stop();
   if (motion && dirty) measure();
   if (motion) reading = {hash: active, progress: reading?.progress ?? currentProgress(), position: scrollY};
-  replay.dataset.inspecting = "";
+  showRecords(true);
   refresh();
 }
 
@@ -222,13 +258,25 @@ for (const link of links) {
 
 play.addEventListener("click", () => playing ? stop() : playFrom());
 restart.addEventListener("click", () => playFrom(true));
+recordsButton.addEventListener("click", () => {
+  if (pane.hidden) holdRecord();
+  else {
+    clearReading();
+    closeRecords();
+    refresh();
+  }
+});
+introRestart.addEventListener("click", () => {
+  root.classList.remove("hero-entering");
+  window.scrollTo({top: 0, behavior: "instant"});
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (motion) root.classList.add("hero-entering");
+  }));
+});
 replay.addEventListener("toggle", event => {
   if (!event.target.matches(".recorded")) return;
   if (event.target.open) holdRecord();
-  else {
-    if (panels.get(active)?.hasAttribute("data-action")) delete replay.dataset.inspecting;
-    refresh();
-  }
+  else refresh();
 }, true);
 // A disclosure takes control before the native toggle event is delivered.
 replay.addEventListener("click", event => {
@@ -279,6 +327,9 @@ function configure() {
   motion = !reduced.matches && CSS.supports("position", "sticky");
   root.toggleAttribute("data-scroll-story", motion);
   controls.hidden = !motion;
+  introRestart.hidden = !motion;
+  scene.hidden = !motion;
+  showRecords(false);
   if (motion) {
     refresh();
     restore();
@@ -291,7 +342,6 @@ function configure() {
   }
 }
 
-replay.dataset.enhanced = "";
 show(first);
 if (!reduced.matches && !location.hash && scrollY < 40) root.classList.add("hero-entering");
 reduced.addEventListener("change", configure);

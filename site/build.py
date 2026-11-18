@@ -105,7 +105,7 @@ def _panel(anchor: int, label: str, body: str, kicker: str = "", *, action: bool
     )
 
 
-def render_replay(output: Path) -> tuple[str, str, str]:
+def render_replay(output: Path) -> tuple[str, str, str, dict[str, str]]:
     path = PILOT / "source/source-0.jsonl"
     trace = read_trajectory(path)
     capsules = read_capsules(PILOT / "capsules.jsonl")
@@ -226,7 +226,14 @@ def render_replay(output: Path) -> tuple[str, str, str]:
             ),
         )
     )
-    return "".join(slip_rows), "".join(links), "".join(panels)
+    scene = {
+        "scene_case": escape(trace.task.ticket_id),
+        "scene_parcel": escape(str(trace.steps[0].observation.data["parcel_id"])),
+        "scene_product": escape(str(trace.steps[1].observation.data["product_id"])),
+        "scene_status": escape(str(trace.steps[1].observation.data["status"]).capitalize()),
+        "scene_receipt": escape(receipt[-8:]),
+    }
+    return "".join(slip_rows), "".join(links), "".join(panels), scene
 
 
 def render_comparison() -> tuple[str, str]:
@@ -399,7 +406,7 @@ def build(output: Path, base_url: str = CANONICAL, verification: str = "") -> No
     assets.mkdir(exist_ok=True)
     for name in ("social-preview.png", "site.css", "site.js", "replay-motion.mjs"):
         copyfile(SITE / "assets" / name, assets / name)
-    slip, links, panels = render_replay(output)
+    slip, links, panels, scene = render_replay(output)
     backup_status, backup_outcomes = render_comparison()
     completion_marks, abstained, experiments = render_results()
     template = Template((SITE / "index.html").read_text(encoding="utf-8"))
@@ -414,6 +421,7 @@ def build(output: Path, base_url: str = CANONICAL, verification: str = "") -> No
             completion_marks=completion_marks,
             abstained=abstained,
             experiments=experiments,
+            **scene,
         ),
         encoding="utf-8",
         newline="\n",
